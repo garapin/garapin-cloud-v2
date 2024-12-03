@@ -6,10 +6,11 @@
 /* Dashboard styles */
 .sidebar {
     box-shadow: 1px 0 5px rgba(0, 0, 0, 0.05);
+    background-color: #6C7DFF !important;
 }
 
 .sidebar .nav-link {
-    color: #4a5568;
+    color: rgba(255, 255, 255, 0.8);
     padding: 1rem;
     font-size: 0.9rem;
     transition: all 0.2s;
@@ -17,19 +18,25 @@
 }
 
 .sidebar .nav-link:hover {
-    color: #7B7FF6;
-    background-color: #f8f9fc;
+    color: #ffffff;
+    background-color: rgba(255, 255, 255, 0.1);
 }
 
 .sidebar .nav-link.active {
-    color: #7B7FF6;
+    color: #ffffff;
     font-weight: 500;
-    background-color: #f8f9fc;
+    background-color: rgba(255, 255, 255, 0.15);
 }
 
 .sidebar .nav-link i {
     margin-right: 0.75rem;
     font-size: 1.1rem;
+}
+
+/* Add a lighter color for the horizontal line */
+.sidebar hr {
+    border-color: rgba(255, 255, 255, 0.1);
+    margin: 0;
 }
 
 /* Profile dropdown */
