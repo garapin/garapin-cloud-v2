@@ -1,0 +1,72 @@
+/* Login page styles */
+.object-fit-cover {
+    object-fit: cover;
+}
+
+/* Dashboard styles */
+.sidebar {
+    box-shadow: 1px 0 5px rgba(0, 0, 0, 0.05);
+}
+
+.sidebar .nav-link {
+    color: #4a5568;
+    padding: 1rem;
+    font-size: 0.9rem;
+    transition: all 0.2s;
+    border-radius: 0;
+}
+
+.sidebar .nav-link:hover {
+    color: #7B7FF6;
+    background-color: #f8f9fc;
+}
+
+.sidebar .nav-link.active {
+    color: #7B7FF6;
+    font-weight: 500;
+    background-color: #f8f9fc;
+}
+
+.sidebar .nav-link i {
+    margin-right: 0.75rem;
+    font-size: 1.1rem;
+}
+
+/* Profile dropdown */
+.dropdown-toggle::after {
+    margin-left: 0.5rem;
+}
+
+/* Card styles */
+.card {
+    border: none;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+    margin-bottom: 1.5rem;
+    border-radius: 0.5rem;
+}
+
+.card-title {
+    color: #2d3748;
+    font-weight: 600;
+}
+
+/* Custom button styles */
+.btn-outline-secondary {
+    border-color: #e2e8f0;
+    color: #7B7FF6;
+}
+
+.btn-outline-secondary:hover,
+.btn-outline-secondary:focus,
+.btn-outline-secondary:active,
+.btn-outline-secondary.active,
+.show > .btn-outline-secondary.dropdown-toggle {
+    background-color: #f8f9fc;
+    border-color: #cbd5e0;
+    color: #7B7FF6 !important;
+}
+
+/* Background colors */
+.bg-light {
+    background-color: #f8fafc !important;
+} 
