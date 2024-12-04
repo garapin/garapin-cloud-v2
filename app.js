@@ -230,12 +230,9 @@ app.get('/store', async (req, res) => {
     }
 });
 
-app.get('/store/:slug', async (req, res) => {
+app.get('/store/app/:id', async (req, res) => {
     try {
-        const application = await Application.findOne({ 
-            slug: req.params.slug,
-            status: 'Published'
-        }).lean();
+        const application = await Application.findById(req.params.id).lean();
 
         if (!application) {
             return res.status(404).send('Application not found');

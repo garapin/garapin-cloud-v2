@@ -31,11 +31,11 @@
                         <div class="col">
                             <div class="card h-100">
                                 <% if (app.logo && app.logo.url) { %>
-                                    <a href="/store/<%= app.slug %>" class="text-decoration-none">
+                                    <a href="/store/app/<%= app._id %>" class="text-decoration-none">
                                         <img src="<%= app.logo.url %>" class="card-img-top p-3" alt="<%= app.title %>" style="height: 200px; object-fit: contain;">
                                     </a>
                                 <% } else { %>
-                                    <a href="/store/<%= app.slug %>" class="text-decoration-none">
+                                    <a href="/store/app/<%= app._id %>" class="text-decoration-none">
                                         <div class="card-img-top bg-light d-flex align-items-center justify-content-center" style="height: 200px;">
                                             <i class="bi bi-box fs-1"></i>
                                         </div>
@@ -43,7 +43,7 @@
                                 <% } %>
                                 <div class="card-body">
                                     <h5 class="card-title">
-                                        <a href="/store/<%= app.slug %>" class="text-decoration-none text-dark">
+                                        <a href="/store/app/<%= app._id %>" class="text-decoration-none text-dark">
                                             <%= app.title %>
                                         </a>
                                     </h5>
