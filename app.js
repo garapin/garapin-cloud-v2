@@ -38,8 +38,8 @@ mongoose.connect(process.env.MONGODB_URI, {
     serverSelectionTimeoutMS: 15000, // Timeout after 15 seconds instead of 10
     socketTimeoutMS: 45000, // Close sockets after 45 seconds of inactivity
     family: 4, // Use IPv4, skip trying IPv6
-    maxPoolSize: 10, // Maintain up to 10 socket connections
-    minPoolSize: 3,  // Maintain at least 3 socket connections
+    maxPoolSize: 3, // Maintain up to 10 socket connections
+    minPoolSize: 1,  // Maintain at least 3 socket connections
     connectTimeoutMS: 15000, // Give up initial connection after 15 seconds
 }).then(() => {
     console.log('MongoDB connected successfully');

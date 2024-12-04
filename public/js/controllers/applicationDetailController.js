@@ -23,32 +23,11 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // Search functionality
-    const searchInput = document.getElementById('searchApps');
-    if (searchInput) {
-        const appCards = document.querySelectorAll('.card');
-
-        searchInput.addEventListener('input', function(e) {
-            const searchTerm = e.target.value.toLowerCase();
-            
-            appCards.forEach(card => {
-                const title = card.querySelector('.card-title').textContent.toLowerCase();
-                const description = card.querySelector('.card-text').textContent.toLowerCase();
-                
-                if (title.includes(searchTerm) || description.includes(searchTerm)) {
-                    card.closest('.col').style.display = '';
-                } else {
-                    card.closest('.col').style.display = 'none';
-                }
-            });
-        });
-    }
-
     // Install button functionality
-    const installButtons = document.querySelectorAll('.install-btn');
+    const installButton = document.querySelector('.install-btn');
     
-    installButtons.forEach(button => {
-        button.addEventListener('click', async function() {
+    if (installButton) {
+        installButton.addEventListener('click', async function() {
             const appId = this.dataset.appId;
             try {
                 // Get the current user's token
@@ -82,5 +61,5 @@ document.addEventListener('DOMContentLoaded', function() {
                 alert('Failed to install application');
             }
         });
-    });
+    }
 }); 
