@@ -1,23 +1,13 @@
 class DashboardController {
     constructor() {
         this.initializeFirebase();
-        this.bindEvents();
+        this.checkCurrentUser();
     }
 
     initializeFirebase() {
         const firebaseConfig = JSON.parse(document.querySelector('[data-firebase-config]').dataset.firebaseConfig);
         firebase.initializeApp(firebaseConfig);
         this.checkCurrentUser();
-    }
-
-    bindEvents() {
-        const logoutButton = document.getElementById('logoutButton');
-        if (logoutButton) {
-            logoutButton.addEventListener('click', (e) => {
-                e.preventDefault();
-                this.handleLogout();
-            });
-        }
     }
 
     async checkCurrentUser() {

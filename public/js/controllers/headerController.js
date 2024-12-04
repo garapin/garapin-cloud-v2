@@ -1,92 +1,84 @@
-class HeaderController {
-    constructor() {
-        this.initializeFirebase();
-        this.setupEventListeners();
-    }
-
-    initializeFirebase() {
-        try {
-            const firebaseConfig = JSON.parse(document.querySelector('[data-firebase-config]').dataset.firebaseConfig);
-            if (!firebase.apps?.length) {
-                firebase.initializeApp(firebaseConfig);
-            }
-            
-            firebase.auth().onAuthStateChanged(async (user) => {
-                if (user) {
-                    const token = await user.getIdToken();
-                    const response = await fetch('/auth/user', {
-                        method: 'POST',
-                        headers: {
-                            'Authorization': `Bearer ${token}`,
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            name: user.displayName,
-                            email: user.email,
-                            provider_uid: user.uid,
-                            photoURL: user.photoURL
-                        })
-                    });
-
-                    if (response.ok) {
-                        const userData = await response.json();
-                        this.updateUI(user);
-                        localStorage.setItem('authToken', token);
-                    }
-                } else {
-                    // Handle logged out state
-                    document.getElementById('userName').textContent = 'Guest';
-                    document.getElementById('userPhotoContainer').innerHTML = '<i class="bi bi-person-circle" style="font-size: 1.2rem;"></i>';
-                    localStorage.removeItem('authToken');
-                    this.updateUI(null);
-                }
-            });
-        } catch (error) {
-            console.error('Firebase initialization error:', error);
+document.addEventListener('DOMContentLoaded', () => {
+    console.log('HeaderController initializing...');
+    
+    // Initialize Firebase if not already initialized
+    try {
+        const firebaseConfig = JSON.parse(document.querySelector('[data-firebase-config]').dataset.firebaseConfig);
+        if (!firebase.apps?.length) {
+            firebase.initializeApp(firebaseConfig);
         }
+    } catch (error) {
+        console.error('Firebase initialization error:', error);
     }
 
-    updateUI(user) {
-        const userPhotoContainer = document.getElementById('userPhotoContainer');
-        const userName = document.getElementById('userName');
-        const publishButton = document.querySelector('.publish-button');
+    // Set up logout button handler
+    const logoutButton = document.getElementById('logoutButton');
+    console.log('Logout button found:', logoutButton);
 
+    if (logoutButton) {
+        logoutButton.addEventListener('click', async (event) => {
+            console.log('Logout button clicked');
+            event.preventDefault();
+            
+            try {
+                console.log('Attempting to sign out...');
+                await firebase.auth().signOut();
+                console.log('Firebase sign out successful');
+                localStorage.removeItem('authToken');
+                sessionStorage.clear();
+                window.location.href = '/';
+            } catch (error) {
+                console.error('Logout error:', error);
+                alert('Failed to logout. Please try again.');
+            }
+        });
+    }
+
+    // Handle auth state changes
+    firebase.auth().onAuthStateChanged(async (user) => {
         if (user) {
-            if (user.photoURL) {
-                userPhotoContainer.innerHTML = `<img src="${user.photoURL}" alt="Profile" class="rounded-circle" style="width: 24px; height: 24px;">`;
-            }
-            if (user.displayName) {
-                userName.textContent = user.displayName;
-            }
-            // Show publish button if user is logged in
-            if (publishButton) {
-                publishButton.style.display = 'flex';
+            const token = await user.getIdToken();
+            const response = await fetch('/auth/user', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    name: user.displayName,
+                    email: user.email,
+                    provider_uid: user.uid,
+                    photoURL: user.photoURL
+                })
+            });
+
+            if (response.ok) {
+                const userData = await response.json();
+                // Update UI
+                const userPhotoContainer = document.getElementById('userPhotoContainer');
+                const userName = document.getElementById('userName');
+                
+                if (user.photoURL && userPhotoContainer) {
+                    userPhotoContainer.innerHTML = `<img src="${user.photoURL}" alt="Profile" class="rounded-circle" style="width: 24px; height: 24px;">`;
+                }
+                if (user.displayName && userName) {
+                    userName.textContent = user.displayName;
+                }
+                
+                localStorage.setItem('authToken', token);
             }
         } else {
-            // Hide publish button if user is not logged in
-            if (publishButton) {
-                publishButton.style.display = 'none';
+            // Handle logged out state
+            const userName = document.getElementById('userName');
+            const userPhotoContainer = document.getElementById('userPhotoContainer');
+            
+            if (userName) userName.textContent = 'Guest';
+            if (userPhotoContainer) {
+                userPhotoContainer.innerHTML = '<i class="bi bi-person-circle" style="font-size: 1.2rem;"></i>';
             }
+            
+            localStorage.removeItem('authToken');
+            window.location.href = '/';
         }
-    }
-
-    setupEventListeners() {
-        const logoutButton = document.getElementById('logoutButton');
-        if (logoutButton) {
-            logoutButton.addEventListener('click', async () => {
-                try {
-                    await firebase.auth().signOut();
-                    localStorage.removeItem('authToken');
-                    window.location.href = '/';
-                } catch (error) {
-                    console.error('Logout error:', error);
-                    alert('Failed to logout. Please try again.');
-                }
-            });
-        }
-    }
-}
-
-document.addEventListener('DOMContentLoaded', () => {
-    new HeaderController();
+    });
 }); 

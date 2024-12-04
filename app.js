@@ -30,33 +30,46 @@ admin.initializeApp({
     storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
 });
 
-// MongoDB Connection with retry logic
-const connectWithRetry = () => {
-    mongoose.connect(process.env.MONGODB_URI, {
-        useNewUrlParser: true,
-        useUnifiedTopology: true,
-        serverSelectionTimeoutMS: 30000,
-        connectTimeoutMS: 30000,
-        socketTimeoutMS: 30000
-    }).then(() => {
-        console.log('Connected to MongoDB successfully');
-    }).catch((err) => {
-        console.error('MongoDB connection error:', err);
-        console.log('Retrying connection in 5 seconds...');
-        setTimeout(connectWithRetry, 5000);
-    });
-};
-
-// Initial connection
-connectWithRetry();
-
-// Add MongoDB connection error handler
-mongoose.connection.on('error', err => {
+// MongoDB Connection with improved settings
+mongoose.set('strictQuery', false);
+mongoose.connect(process.env.MONGODB_URI, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+    serverSelectionTimeoutMS: 15000, // Timeout after 15 seconds instead of 10
+    socketTimeoutMS: 45000, // Close sockets after 45 seconds of inactivity
+    family: 4, // Use IPv4, skip trying IPv6
+    maxPoolSize: 10, // Maintain up to 10 socket connections
+    minPoolSize: 3,  // Maintain at least 3 socket connections
+    connectTimeoutMS: 15000, // Give up initial connection after 15 seconds
+}).then(() => {
+    console.log('MongoDB connected successfully');
+}).catch((err) => {
     console.error('MongoDB connection error:', err);
 });
 
-mongoose.connection.on('connected', () => {
-    console.log('MongoDB connected');
+// Handle MongoDB connection errors
+mongoose.connection.on('error', (err) => {
+    console.error('MongoDB connection error:', err);
+});
+
+mongoose.connection.on('disconnected', () => {
+    console.warn('MongoDB disconnected. Attempting to reconnect...');
+});
+
+mongoose.connection.on('reconnected', () => {
+    console.log('MongoDB reconnected successfully');
+});
+
+// Graceful shutdown
+process.on('SIGINT', async () => {
+    try {
+        await mongoose.connection.close();
+        console.log('MongoDB connection closed through app termination');
+        process.exit(0);
+    } catch (err) {
+        console.error('Error closing MongoDB connection:', err);
+        process.exit(1);
+    }
 });
 
 // Firebase configuration
