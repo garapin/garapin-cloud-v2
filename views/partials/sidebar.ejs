@@ -6,19 +6,19 @@
         <hr class="m-0">
         <ul class="nav flex-column">
             <li class="nav-item">
-                <a class="nav-link active" href="/dashboard">
+                <a class="nav-link <%= currentPage === 'dashboard' ? 'active' : '' %>" href="/dashboard">
                     <i class="bi bi-house-door"></i>
                     Home
                 </a>
             </li>
             <li class="nav-item">
-                <a class="nav-link" href="/store">
+                <a class="nav-link <%= currentPage === 'store' ? 'active' : '' %>" href="/store">
                     <i class="bi bi-shop"></i>
                     Store
                 </a>
             </li>
             <li class="nav-item">
-                <a class="nav-link" href="/billing">
+                <a class="nav-link <%= currentPage === 'billing' ? 'active' : '' %>" href="/billing">
                     <i class="bi bi-credit-card"></i>
                     Billing
                 </a>

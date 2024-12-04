@@ -130,27 +130,6 @@ class DashboardController {
         }
     }
 
-    async handleLogout() {
-        try {
-            const logoutButton = document.getElementById('logoutButton');
-            const originalText = logoutButton.textContent;
-            logoutButton.textContent = 'Logging out...';
-            logoutButton.disabled = true;
-
-            sessionStorage.clear();
-            localStorage.clear();
-            await firebase.auth().signOut();
-            window.location.href = '/';
-        } catch (error) {
-            console.error('Logout error:', error);
-            alert('Failed to logout. Please try again.');
-            
-            const logoutButton = document.getElementById('logoutButton');
-            logoutButton.textContent = originalText;
-            logoutButton.disabled = false;
-        }
-    }
-
     redirectToLogin() {
         if (window.location.pathname !== '/') {
             sessionStorage.clear();

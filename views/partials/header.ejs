@@ -1,18 +1,24 @@
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
     <h1 class="h2"><%= pageTitle %></h1>
     <div class="btn-toolbar mb-2 mb-md-0">
-        <div class="dropdown">
-            <button class="btn btn-outline-secondary dropdown-toggle d-flex align-items-center gap-2" type="button" id="dropdownMenuButton" data-bs-toggle="dropdown" aria-expanded="false">
-                <div id="userPhotoContainer">
-                    <i class="bi bi-person-circle" style="font-size: 1.2rem;"></i>
-                </div>
-                <span id="userName">Loading...</span>
-            </button>
-            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="dropdownMenuButton">
-                <li><a class="dropdown-item" href="/profile">Settings</a></li>
-                <li><hr class="dropdown-divider"></li>
-                <li><a class="dropdown-item" href="#" id="logoutButton">Logout</a></li>
-            </ul>
+        <div class="d-flex align-items-center gap-2">
+            <a href="/publish" class="btn btn-primary d-flex align-items-center gap-2">
+                <i class="bi bi-plus-circle"></i>
+                <span>Publish App</span>
+            </a>
+            <div class="dropdown">
+                <button class="btn btn-outline-secondary dropdown-toggle d-flex align-items-center gap-2" type="button" id="dropdownMenuButton" data-bs-toggle="dropdown" aria-expanded="false">
+                    <div id="userPhotoContainer">
+                        <i class="bi bi-person-circle" style="font-size: 1.2rem;"></i>
+                    </div>
+                    <span id="userName">Loading...</span>
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="dropdownMenuButton">
+                    <li><a class="dropdown-item" href="/profile">Settings</a></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><a class="dropdown-item" href="#" id="logoutButton">Logout</a></li>
+                </ul>
+            </div>
         </div>
     </div>
 </div> 
