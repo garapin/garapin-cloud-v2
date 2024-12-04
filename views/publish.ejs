@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Garapin Cloud - Publish App</title>
+    <title>Garapin Cloud - <%= isEdit ? 'Edit My Application' : 'Publish App' %></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
     <link rel="stylesheet" href="/css/style.css">
@@ -18,43 +18,61 @@
 
             <!-- Main content -->
             <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 bg-light">
-                <%- include('partials/header', {pageTitle: 'Publish Application'}) %>
+                <%- include('partials/header', {pageTitle: isEdit ? 'Edit My Application' : 'Publish Application'}) %>
 
                 <!-- Publish form content -->
                 <div class="row">
                     <div class="col-12">
                         <div class="card">
                             <div class="card-body">
-                                <form id="publishForm" class="mt-4">
+                                <form id="publishForm" class="mt-4" data-edit="<%= typeof isEdit !== 'undefined' && isEdit %>" 
+                                    <%= typeof application !== 'undefined' && application ? `data-app-id=${application._id}` : '' %>>
                                     <div class="mb-4 d-flex justify-content-end align-items-center gap-3">
                                         <label class="form-check-label" for="statusSwitch">Status:</label>
                                         <div class="form-check form-switch">
-                                            <input class="form-check-input" type="checkbox" role="switch" id="statusSwitch" style="width: 3em; height: 1.5em;">
-                                            <span id="statusText" class="ms-2" style="font-size: 0.9em; color: #6c757d;">Not Published</span>
+                                            <input class="form-check-input" type="checkbox" role="switch" id="statusSwitch"
+                                                <%= (application && application.status === 'Published') ? 'checked' : '' %>
+                                                style="width: 3em; height: 1.5em;">
                                         </div>
                                     </div>
 
                                     <div class="mb-3">
                                         <label for="appName" class="form-label">Application Name</label>
-                                        <input type="text" class="form-control" id="appName" required>
+                                        <% if (application) { %>
+                                            <input type="text" 
+                                                class="form-control" 
+                                                id="appName" 
+                                                required 
+                                                readonly 
+                                                style="background-color: #e9ecef; color: #495057; cursor: not-allowed;"
+                                                value="<%= application.title %>">
+                                        <% } else { %>
+                                            <input type="text" 
+                                                class="form-control" 
+                                                id="appName" 
+                                                required 
+                                                value="">
+                                        <% } %>
                                     </div>
 
                                     <div class="mb-3">
                                         <label for="description" class="form-label">Description</label>
-                                        <textarea class="form-control" id="description" rows="10" required></textarea>
+                                        <textarea class="form-control" id="description" rows="10" required>
+                                            <%= application ? application.description : '' %>
+                                        </textarea>
                                     </div>
 
                                     <div class="mb-3">
                                         <label for="support_detail" class="form-label">Support Detail</label>
                                         <textarea class="form-control" id="support_detail" rows="3" required 
-                                            placeholder="e.g., Email support, 24/7 chat support, etc."></textarea>
+                                            placeholder="e.g., Email support, 24/7 chat support, etc."><%= application ? application.support_detail : '' %></textarea>
                                     </div>
 
                                     <div class="mb-3">
                                         <label for="price" class="form-label">Price (IDR)</label>
                                         <div class="input-group">
                                             <span class="input-group-text">Rp</span>
-                                            <input type="number" class="form-control" id="price" min="0" step="1000" required placeholder="0">
+                                            <input type="number" class="form-control" id="price" min="0" step="1000" required placeholder="0" value="<%= application ? application.price : '' %>">
                                         </div>
                                         <div class="form-text">Enter price in Indonesian Rupiah (IDR)</div>
                                     </div>
@@ -63,33 +81,44 @@
                                         <label for="category" class="form-label">Category</label>
                                         <select class="form-control" id="category" required>
                                             <option value="">Select Category</option>
+                                            <% if (application) { %>
+                                                <script>
+                                                    window.selectedCategory = '<%= application.category %>';
+                                                </script>
+                                            <% } %>
                                         </select>
                                     </div>
 
                                     <div class="mb-3">
-                                        <label for="appFile" class="form-label">Application File (Optional)</label>
-                                        <input type="file" class="form-control" id="appFile">
-                                        <div class="form-text">Upload your application file if available</div>
-                                    </div>
-
-                                    <div class="mb-3">
-                                        <label for="appIcon" class="form-label">Application Icon (Optional)</label>
+                                        <label for="appIcon" class="form-label">Application Icon</label>
                                         <div class="d-flex align-items-center gap-3">
-                                            <img src="/images/default-app-icon.svg" id="iconPreview" alt="App Icon" class="rounded" style="width: 64px; height: 64px; object-fit: cover;">
-                                            <input type="file" class="form-control" id="appIcon" accept="image/*">
+                                            <img src="<%= application && application.logo ? application.logo.url : '/images/default-app-icon.svg' %>" 
+                                                id="iconPreview" alt="App Icon" class="rounded" 
+                                                style="width: 64px; height: 64px; object-fit: cover;">
+                                            <input type="file" class="form-control" id="appIcon">
                                         </div>
                                         <div class="form-text">Default icon will be used if none provided</div>
                                     </div>
 
                                     <div class="mb-3">
-                                        <label for="screenshots" class="form-label">Screenshots (Optional, Max 5)</label>
-                                        <div class="mb-2">
-                                            <div id="screenshotPreviews" class="d-flex gap-2 mb-2">
-                                                <img src="/images/default-screenshot.svg" alt="Default Screenshot" class="rounded" style="width: 160px; height: 90px; object-fit: cover;">
-                                            </div>
-                                            <input type="file" class="form-control" id="screenshots" accept="image/*" multiple>
+                                        <label for="screenshots" class="form-label">Screenshots (Max 5)</label>
+                                        <input type="file" class="form-control mb-3" id="screenshots" accept="image/*" multiple>
+                                        
+                                        <div id="screenshotPreviews" class="row g-3">
+                                            <% if (application && application.screenshoots && application.screenshoots.length > 0) { %>
+                                                <% application.screenshoots.forEach((screenshot, index) => { %>
+                                                    <div class="col-6 col-md-4 screenshot-container">
+                                                        <div class="position-relative">
+                                                            <img src="<%= screenshot.url %>" alt="Screenshot" class="img-fluid rounded">
+                                                            <button type="button" class="btn btn-danger btn-sm position-absolute top-0 end-0 m-1 delete-screenshot"
+                                                                data-index="<%= index %>">
+                                                                <i class="bi bi-trash"></i>
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                <% }); %>
+                                            <% } %>
                                         </div>
-                                        <div class="form-text">Default screenshot will be used if none provided</div>
                                     </div>
 
                                     <button type="submit" class="btn btn-primary">Save</button>

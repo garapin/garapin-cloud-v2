@@ -14,7 +14,7 @@ const upload = multer({
 });
 
 const User = require('./models/User');
-const Application = require('./models/Application');
+const Application = require('./models/application');
 const categoryController = require('./controllers/categoryController');
 const Category = require('./models/Category');
 
@@ -30,37 +30,59 @@ admin.initializeApp({
     storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
 });
 
-// MongoDB Connection with improved settings
-mongoose.set('strictQuery', false);
-mongoose.connect(process.env.MONGODB_URI, {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-    serverSelectionTimeoutMS: 15000, // Timeout after 15 seconds instead of 10
-    socketTimeoutMS: 45000, // Close sockets after 45 seconds of inactivity
-    family: 4, // Use IPv4, skip trying IPv6
-    maxPoolSize: 3, // Maintain up to 10 socket connections
-    minPoolSize: 1,  // Maintain at least 3 socket connections
-    connectTimeoutMS: 15000, // Give up initial connection after 15 seconds
-}).then(() => {
-    console.log('MongoDB connected successfully');
-}).catch((err) => {
-    console.error('MongoDB connection error:', err);
-});
+// MongoDB Connection Setup
+const connectDB = async () => {
+    try {
+        // Clear any existing connections
+        await mongoose.disconnect();
 
-// Handle MongoDB connection errors
-mongoose.connection.on('error', (err) => {
-    console.error('MongoDB connection error:', err);
-});
+        // Configure mongoose
+        mongoose.set('strictQuery', false);
 
-mongoose.connection.on('disconnected', () => {
-    console.warn('MongoDB disconnected. Attempting to reconnect...');
-});
+        // Connection options
+        const options = {
+            useNewUrlParser: true,
+            useUnifiedTopology: true,
+            serverSelectionTimeoutMS: 30000, // Increased timeout
+            socketTimeoutMS: 45000,
+            family: 4,
+            maxPoolSize: 10,
+            minPoolSize: 2,
+            connectTimeoutMS: 30000,
+            heartbeatFrequencyMS: 2000,
+            retryWrites: true,
+            retryReads: true
+        };
 
-mongoose.connection.on('reconnected', () => {
-    console.log('MongoDB reconnected successfully');
-});
+        // Connect to MongoDB
+        await mongoose.connect(process.env.MONGODB_URI, options);
+        console.log('MongoDB connected successfully');
 
-// Graceful shutdown
+        // Handle connection events
+        mongoose.connection.on('error', (err) => {
+            console.error('MongoDB connection error:', err);
+            setTimeout(connectDB, 5000); // Try to reconnect after 5 seconds
+        });
+
+        mongoose.connection.on('disconnected', () => {
+            console.warn('MongoDB disconnected. Attempting to reconnect...');
+            setTimeout(connectDB, 5000);
+        });
+
+        mongoose.connection.on('reconnected', () => {
+            console.log('MongoDB reconnected successfully');
+        });
+
+    } catch (error) {
+        console.error('MongoDB connection failed:', error);
+        setTimeout(connectDB, 5000); // Try to reconnect after 5 seconds
+    }
+};
+
+// Initial connection
+connectDB();
+
+// Handle application shutdown
 process.on('SIGINT', async () => {
     try {
         await mongoose.connection.close();
@@ -230,38 +252,30 @@ app.get('/store', async (req, res) => {
     }
 });
 
-app.get('/store/app/:id', async (req, res) => {
+app.get(['/publish', '/my-apps/:id'], async (req, res) => {
     try {
-        const application = await Application.findById(req.params.id).lean();
+        // Check if this is an edit request (has ID) or new publish
+        const isEdit = req.params.id ? true : false;
+        let application = null;
 
-        if (!application) {
-            return res.status(404).send('Application not found');
+        if (isEdit) {
+            application = await Application.findOne({ _id: req.params.id });
+            if (!application) {
+                return res.status(404).send('Application not found');
+            }
         }
 
-        // Get user information
-        const userData = await User.findOne({ provider_uid: application.user_id }).lean();
-        application.userName = userData ? userData.name : 'Unknown User';
-        application.userStatus = userData ? userData.status : null;
-
-        res.render('application-detail', {
+        res.render('publish', {
             firebaseConfig,
-            application,
+            application, // Will be null for new publish
+            isEdit,     // Flag to indicate if this is an edit
             user: req.user,
-            pageTitle: 'Application Details'
+            pageTitle: isEdit ? 'Edit Application' : 'Publish Application'
         });
     } catch (error) {
-        console.error('Error fetching application:', error);
-        res.status(500).send('Error loading application details');
+        console.error('Error:', error);
+        res.status(500).send('Error loading page');
     }
-});
-
-app.get('/publish', (req, res) => {
-    res.render('publish', {
-        firebaseConfig,
-        layout: 'layout',
-        user: req.user,
-        pageTitle: 'Publish Application'
-    });
 });
 
 app.get('/api/categories', categoryController.getAllCategories);
@@ -397,6 +411,199 @@ app.post('/api/applications/publish', verifyToken, upload.fields([
             error: error.message || 'Failed to publish application',
             details: error.stack
         });
+    }
+});
+
+// My Apps Routes
+app.get('/my-apps', async (req, res) => {
+    try {
+        // Check if user is authenticated through Firebase
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.render('my-apps', { 
+                firebaseConfig,
+                applications: [],
+                user: null,
+                pageTitle: 'My Apps'
+            });
+        }
+
+        const token = authHeader.split('Bearer ')[1];
+        const decodedToken = await admin.auth().verifyIdToken(token);
+
+        // Find all applications by this user (both published and unpublished)
+        const applications = await Application.find({ 
+            user_id: decodedToken.uid  // This should match the Firebase UUID
+        }).sort({ created_at: -1 });
+
+        res.render('my-apps', { 
+            firebaseConfig,
+            applications,
+            user: req.user,
+            pageTitle: 'My Apps'
+        });
+    } catch (error) {
+        console.error('Error fetching my apps:', error);
+        res.status(500).send('Error loading my applications');
+    }
+});
+
+// API Routes for My Apps
+app.put('/api/my-apps/:id', verifyToken, upload.fields([
+    { name: 'icon', maxCount: 1 },
+    { name: 'screenshots', maxCount: 5 }
+]), async (req, res) => {
+    try {
+        const sanitizedId = req.params.id.replace(/"/g, '');
+        const application = await Application.findOne({
+            _id: sanitizedId,
+            user_id: req.user.provider_uid
+        });
+
+        if (!application) {
+            return res.status(404).json({ error: 'Application not found' });
+        }
+
+        // Update fields
+        const updateFields = ['description', 'support_detail', 'price', 'status', 'category'];
+        updateFields.forEach(field => {
+            if (req.body[field]) {
+                application[field] = req.body[field];
+            }
+        });
+
+        // Handle file uploads
+        if (req.files) {
+            const bucket = admin.storage().bucket();
+
+            // Handle logo upload
+            if (req.files.icon) {
+                const iconFile = req.files.icon[0];
+                const iconPath = `applications/${application._id}/icon/${iconFile.originalname}`;
+                const iconBuffer = iconFile.buffer;
+                
+                const iconFileUpload = bucket.file(iconPath);
+                await iconFileUpload.save(iconBuffer);
+                const [iconUrl] = await iconFileUpload.getSignedUrl({
+                    action: 'read',
+                    expires: '03-01-2500'
+                });
+
+                application.logo = {
+                    url: iconUrl,
+                    name: iconFile.originalname
+                };
+            }
+
+            // Handle screenshots upload
+            if (req.files.screenshots) {
+                const screenshotPromises = req.files.screenshots.map(async (file) => {
+                    const screenshotPath = `applications/${application._id}/screenshots/${file.originalname}`;
+                    const screenshotBuffer = file.buffer;
+                    
+                    const screenshotFileUpload = bucket.file(screenshotPath);
+                    await screenshotFileUpload.save(screenshotBuffer);
+                    const [screenshotUrl] = await screenshotFileUpload.getSignedUrl({
+                        action: 'read',
+                        expires: '03-01-2500'
+                    });
+
+                    return {
+                        url: screenshotUrl,
+                        name: file.originalname,
+                        bucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+                        size: file.size,
+                        full_path: screenshotPath,
+                        isCover: false
+                    };
+                });
+
+                const newScreenshots = await Promise.all(screenshotPromises);
+                const existingCount = parseInt(req.body.existingScreenshotsCount) || 0;
+                if (existingCount === 0) {
+                    application.screenshoots = newScreenshots;
+                    if (newScreenshots.length > 0) {
+                        application.screenshoots[0].isCover = true;
+                    }
+                } else {
+                    application.screenshoots = [
+                        ...application.screenshoots.slice(0, existingCount),
+                        ...newScreenshots
+                    ];
+                }
+            }
+        }
+
+        await application.save();
+        res.json({ message: 'Application updated successfully' });
+    } catch (error) {
+        console.error('Error updating application:', error);
+        res.status(500).json({ error: 'Error updating application' });
+    }
+});
+
+app.delete('/api/my-apps/:id/screenshots/:index', verifyToken, async (req, res) => {
+    try {
+        const application = await Application.findOne({
+            _id: req.params.id,
+            user_id: req.user.provider_uid
+        });
+
+        if (!application) {
+            return res.status(404).json({ error: 'Application not found' });
+        }
+
+        const index = parseInt(req.params.index);
+        if (application.screenshoots && application.screenshoots[index]) {
+            // Remove the screenshot from storage if needed
+            // Your storage deletion logic here
+
+            // Remove from array
+            application.screenshoots.splice(index, 1);
+            await application.save();
+            res.json({ message: 'Screenshot deleted successfully' });
+        } else {
+            res.status(404).json({ error: 'Screenshot not found' });
+        }
+    } catch (error) {
+        console.error('Error deleting screenshot:', error);
+        res.status(500).json({ error: 'Error deleting screenshot' });
+    }
+});
+
+app.get('/store/app/:id', async (req, res) => {
+    try {
+        const application = await Application.findById(req.params.id)
+            .populate({
+                path: 'category',
+                model: 'Category',
+                select: 'category_name'
+            })
+            .lean();
+
+        if (!application) {
+            return res.status(404).send('Application not found');
+        }
+
+        // Get user information with status
+        const userData = await User.findOne({ 
+            provider_uid: application.user_id 
+        }).select('name status').lean();
+
+        application.userName = userData ? userData.name : 'Unknown User';
+        application.userStatus = userData ? userData.status : null;
+
+        console.log('Populated application:', application); // For debugging
+
+        res.render('application-detail', {
+            firebaseConfig,
+            application,
+            user: req.user,
+            pageTitle: 'Application Details'
+        });
+    } catch (error) {
+        console.error('Error fetching application:', error);
+        res.status(500).send('Error loading application details');
     }
 });
 

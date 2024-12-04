@@ -33,8 +33,8 @@ const applicationSchema = new mongoose.Schema({
     },
     status: {
         type: String,
-        enum: ['draft', 'pending', 'published', 'rejected'],
-        default: 'pending',
+        enum: ['Draft', 'Pending', 'Published', 'Rejected'],
+        default: 'Pending',
         required: true
     },
     user_id: String,
