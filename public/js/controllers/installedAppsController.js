@@ -56,7 +56,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     if (!app) return '';
                     
                     return `
-                        <div class="col">
+                        <div class="col mb-2">
                             <div class="card h-100">
                                 ${app.logo && app.logo.url 
                                     ? `<a href="/store/app/${app._id}" class="text-decoration-none">
@@ -111,8 +111,8 @@ document.addEventListener('DOMContentLoaded', function() {
             } else {
                 // Show empty state
                 appsContainer.innerHTML = `
-                    <div class="col-12">
-                        <div class="alert alert-info text-center w-100 py-4">
+                    <div class="col-12 w-100">
+                        <div class="alert alert-info text-center py-4">
                             <i class="bi bi-info-circle me-2"></i>
                             You haven't installed any applications yet. 
                             <a href="/store" class="alert-link">Visit the store</a> to discover and install applications.

@@ -132,7 +132,7 @@ class PublishController {
             }
 
             alert(isEdit ? 'Application updated successfully!' : 'Application published successfully!');
-            window.location.href = '/my-apps';
+            window.location.href = '/my-apps/list';
         } catch (error) {
             console.error('Error:', error);
             alert(error.message || 'Failed to save application');
