@@ -12,10 +12,32 @@
                 </a>
             </li>
             <li class="nav-item">
-                <a class="nav-link <%= currentPage === 'my-apps' ? 'active' : '' %>" href="/my-apps">
+                <a class="nav-link <%= ['my-apps', 'publish-apps', 'installed-apps'].includes(currentPage) ? 'active' : '' %>" 
+                   data-bs-toggle="collapse" 
+                   href="#myAppsSubmenu" 
+                   role="button" 
+                   aria-expanded="false" 
+                   aria-controls="myAppsSubmenu">
                     <i class="bi bi-grid me-2"></i>
                     My Apps
+                    <i class="bi bi-chevron-down float-end"></i>
                 </a>
+                <div class="collapse <%= ['publish-apps', 'installed-apps'].includes(currentPage) ? 'show' : '' %>" id="myAppsSubmenu">
+                    <ul class="nav flex-column ms-3">
+                        <li class="nav-item">
+                            <a class="nav-link <%= currentPage === 'publish-apps' ? 'active' : '' %>" href="/my-apps/list">
+                                <i class="bi bi-cloud-upload me-2"></i>
+                                Published Apps
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link <%= currentPage === 'installed-apps' ? 'active' : '' %>" href="/my-apps/installed">
+                                <i class="bi bi-cloud-download me-2"></i>
+                                Installed Apps
+                            </a>
+                        </li>
+                    </ul>
+                </div>
             </li>
             <li class="nav-item">
                 <a class="nav-link <%= currentPage === 'store' ? 'active' : '' %>" href="/store">

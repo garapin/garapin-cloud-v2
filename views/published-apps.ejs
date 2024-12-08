@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Garapin Cloud - My Apps</title>
+    <title>Garapin Cloud - Published Apps</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
     <link rel="stylesheet" href="/css/style.css">
@@ -12,11 +12,11 @@
 <body>
     <div class="container-fluid" data-firebase-config='<%= JSON.stringify(firebaseConfig) %>'>
         <div class="row">
-            <%- include('partials/sidebar', {currentPage: 'my-apps'}) %>
+            <%- include('partials/sidebar', {currentPage: 'publish-apps'}) %>
 
             <!-- Main content -->
             <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 bg-light">
-                <%- include('partials/header', {pageTitle: 'My Apps'}) %>
+                <%- include('partials/header', {pageTitle: 'Published Apps'}) %>
 
                 <!-- Search Bar -->
                 <div class="row mb-4">
@@ -36,11 +36,11 @@
                                     </span>
                                 </div>
                                 <% if (app.logo && app.logo.url) { %>
-                                    <a href="/my-apps/<%= app._id %>" class="text-decoration-none">
+                                    <a href="/publish/<%= app._id %>" class="text-decoration-none">
                                         <img src="<%= app.logo.url %>" class="card-img-top p-3" alt="<%= app.title %>" style="height: 200px; object-fit: contain;">
                                     </a>
                                 <% } else { %>
-                                    <a href="/my-apps/<%= app._id %>" class="text-decoration-none">
+                                    <a href="/publish/<%= app._id %>" class="text-decoration-none">
                                         <div class="card-img-top bg-light d-flex align-items-center justify-content-center" style="height: 200px;">
                                             <i class="bi bi-box fs-1"></i>
                                         </div>
@@ -48,7 +48,7 @@
                                 <% } %>
                                 <div class="card-body">
                                     <h5 class="card-title">
-                                        <a href="/my-apps/<%= app._id %>" class="text-decoration-none text-dark">
+                                        <a href="/publish/<%= app._id %>" class="text-decoration-none text-dark">
                                             <%= app.title %>
                                         </a>
                                     </h5>
@@ -73,7 +73,7 @@
                                         <div class="price">
                                             <strong>Rp. <%= app.price.toLocaleString('id-ID') %></strong> / Month
                                         </div>
-                                        <a href="/my-apps/<%= app._id %>" class="btn btn-primary">
+                                        <a href="/publish/<%= app._id %>" class="btn btn-primary">
                                             <i class="bi bi-pencil me-1"></i> Edit
                                         </a>
                                     </div>

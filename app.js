@@ -252,32 +252,6 @@ app.get('/store', async (req, res) => {
     }
 });
 
-app.get(['/publish', '/my-apps/:id'], async (req, res) => {
-    try {
-        // Check if this is an edit request (has ID) or new publish
-        const isEdit = req.params.id ? true : false;
-        let application = null;
-
-        if (isEdit) {
-            application = await Application.findOne({ _id: req.params.id });
-            if (!application) {
-                return res.status(404).send('Application not found');
-            }
-        }
-
-        res.render('publish', {
-            firebaseConfig,
-            application, // Will be null for new publish
-            isEdit,     // Flag to indicate if this is an edit
-            user: req.user,
-            pageTitle: isEdit ? 'Edit Application' : 'Publish Application'
-        });
-    } catch (error) {
-        console.error('Error:', error);
-        res.status(500).send('Error loading page');
-    }
-});
-
 app.get('/api/categories', categoryController.getAllCategories);
 app.post('/api/categories', categoryController.createCategory);
 app.put('/api/categories/:id', categoryController.updateCategory);
@@ -414,17 +388,18 @@ app.post('/api/applications/publish', verifyToken, upload.fields([
     }
 });
 
-// My Apps Routes
-app.get('/my-apps', async (req, res) => {
+// Published Apps Route (must come before the :id route)
+app.get('/my-apps/list', async (req, res) => {
     try {
         // Check if user is authenticated through Firebase
         const authHeader = req.headers.authorization;
         if (!authHeader || !authHeader.startsWith('Bearer ')) {
-            return res.render('my-apps', { 
+            return res.render('published-apps', { 
                 firebaseConfig,
                 applications: [],
                 user: null,
-                pageTitle: 'My Apps'
+                pageTitle: 'Published Apps',
+                currentPage: 'publish-apps'
             });
         }
 
@@ -433,19 +408,57 @@ app.get('/my-apps', async (req, res) => {
 
         // Find all applications by this user (both published and unpublished)
         const applications = await Application.find({ 
-            user_id: decodedToken.uid  // This should match the Firebase UUID
+            user_id: decodedToken.uid
         }).sort({ created_at: -1 });
 
-        res.render('my-apps', { 
+        res.render('published-apps', { 
             firebaseConfig,
             applications,
             user: req.user,
-            pageTitle: 'My Apps'
+            pageTitle: 'Published Apps',
+            currentPage: 'publish-apps'
         });
     } catch (error) {
         console.error('Error fetching my apps:', error);
         res.status(500).send('Error loading my applications');
     }
+});
+
+// Make sure this route comes after the /my-apps/list route
+app.get(['/publish', '/publish/:id'], async (req, res) => {
+    try {
+        // Check if this is an edit request (has ID) or new publish
+        const isEdit = req.params.id ? true : false;
+        let application = null;
+
+        if (isEdit) {
+            application = await Application.findOne({ _id: req.params.id });
+            if (!application) {
+                return res.status(404).send('Application not found');
+            }
+        }
+
+        res.render('publish', {
+            firebaseConfig,
+            application, // Will be null for new publish
+            isEdit,     // Flag to indicate if this is an edit
+            user: req.user,
+            pageTitle: isEdit ? 'Edit Application' : 'Publish Application'
+        });
+    } catch (error) {
+        console.error('Error:', error);
+        res.status(500).send('Error loading page');
+    }
+});
+
+// Add route for installed apps
+app.get('/my-apps/installed', async (req, res) => {
+    res.render('installed-apps', {
+        firebaseConfig,
+        user: req.user,
+        pageTitle: 'Installed Apps',
+        currentPage: 'installed-apps'
+    });
 });
 
 // API Routes for My Apps

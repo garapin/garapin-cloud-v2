@@ -9,7 +9,7 @@ document.addEventListener('DOMContentLoaded', function() {
         try {
             // Fetch applications with the token
             const idToken = await user.getIdToken();
-            const response = await fetch('/my-apps', {
+            const response = await fetch('/my-apps/list', {
                 headers: {
                     'Authorization': `Bearer ${idToken}`
                 }
@@ -19,8 +19,17 @@ document.addEventListener('DOMContentLoaded', function() {
                 throw new Error('Failed to fetch applications');
             }
 
-            const html = await response.text();
-            document.documentElement.innerHTML = html;
+            // Parse the response and update only the main content
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(await response.text(), 'text/html');
+            const newContent = doc.querySelector('.row.row-cols-1');
+            
+            if (newContent) {
+                const currentContent = document.querySelector('.row.row-cols-1');
+                if (currentContent) {
+                    currentContent.innerHTML = newContent.innerHTML;
+                }
+            }
 
             // Search functionality
             const searchInput = document.getElementById('searchMyApps');
