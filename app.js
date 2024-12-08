@@ -17,6 +17,7 @@ const User = require('./models/User');
 const Application = require('./models/application');
 const categoryController = require('./controllers/categoryController');
 const Category = require('./models/Category');
+const InstalledApp = require('./models/InstalledApp');
 
 const app = express();
 
@@ -43,7 +44,7 @@ const connectDB = async () => {
         const options = {
             useNewUrlParser: true,
             useUnifiedTopology: true,
-            serverSelectionTimeoutMS: 30000, // Increased timeout
+            serverSelectionTimeoutMS: 30000,
             socketTimeoutMS: 45000,
             family: 4,
             maxPoolSize: 10,
@@ -54,14 +55,18 @@ const connectDB = async () => {
             retryReads: true
         };
 
+        // Verify MongoDB URI
+        console.log('Connecting to MongoDB:', process.env.MONGODB_URI.replace(/\/\/[^:]+:[^@]+@/, '//****:****@'));
+        
         // Connect to MongoDB
         await mongoose.connect(process.env.MONGODB_URI, options);
         console.log('MongoDB connected successfully');
+        console.log('Connected to database:', mongoose.connection.name);
 
         // Handle connection events
         mongoose.connection.on('error', (err) => {
             console.error('MongoDB connection error:', err);
-            setTimeout(connectDB, 5000); // Try to reconnect after 5 seconds
+            setTimeout(connectDB, 5000);
         });
 
         mongoose.connection.on('disconnected', () => {
@@ -75,7 +80,7 @@ const connectDB = async () => {
 
     } catch (error) {
         console.error('MongoDB connection failed:', error);
-        setTimeout(connectDB, 5000); // Try to reconnect after 5 seconds
+        setTimeout(connectDB, 5000);
     }
 };
 
@@ -231,7 +236,8 @@ app.get('/dashboard', async (req, res) => {
     res.render('dashboard', { 
         firebaseConfig,
         user: req.user,
-        pageTitle: 'Dashboard'
+        pageTitle: 'Dashboard',
+        currentPage: 'dashboard'
     });
 });
 
@@ -244,7 +250,8 @@ app.get('/store', async (req, res) => {
             firebaseConfig,
             applications,
             user: req.user,
-            pageTitle: 'Store'
+            pageTitle: 'Store',
+            currentPage: 'store'
         });
     } catch (error) {
         console.error('Error fetching applications:', error);
@@ -453,12 +460,63 @@ app.get(['/publish', '/publish/:id'], async (req, res) => {
 
 // Add route for installed apps
 app.get('/my-apps/installed', async (req, res) => {
-    res.render('installed-apps', {
-        firebaseConfig,
-        user: req.user,
-        pageTitle: 'Installed Apps',
-        currentPage: 'installed-apps'
-    });
+    try {
+        // Get token from header
+        const authHeader = req.headers.authorization;
+        console.log('\n=== Fetching Installed Apps ===');
+        console.log('Auth header present:', !!authHeader);
+
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            console.log('No valid auth token found');
+            return res.render('installed-apps', { 
+                firebaseConfig,
+                applications: [],
+                user: null,
+                pageTitle: 'Installed Apps',
+                currentPage: 'installed-apps'
+            });
+        }
+
+        const token = authHeader.split('Bearer ')[1];
+        const decodedToken = await admin.auth().verifyIdToken(token);
+        const userId = decodedToken.uid;
+        console.log('Authenticated user ID:', userId);
+
+        // Get installed apps with populated application data
+        const installedApps = await InstalledApp.find({ user_id: userId })
+            .populate('application_id')
+            .sort({ installed_date: -1 });
+
+        console.log('Found installed apps:', installedApps.length);
+
+        // Filter out any null application_id entries
+        const validApps = installedApps.filter(app => app.application_id != null);
+        console.log('Valid apps after filtering:', validApps.length);
+
+        // Return JSON if requested
+        if (req.headers.accept?.includes('application/json')) {
+            return res.json({ applications: validApps });
+        }
+
+        // Get user data for view
+        const userData = await User.findOne({ provider_uid: userId });
+
+        // Render the view
+        res.render('installed-apps', {
+            firebaseConfig,
+            applications: validApps,
+            user: userData,
+            pageTitle: 'Installed Apps',
+            currentPage: 'installed-apps'
+        });
+
+    } catch (error) {
+        console.error('Error fetching installed apps:', error);
+        if (req.headers.accept?.includes('application/json')) {
+            return res.status(500).json({ error: 'Error loading installed applications' });
+        }
+        res.status(500).send('Error loading installed applications');
+    }
 });
 
 // API Routes for My Apps
@@ -617,6 +675,73 @@ app.get('/store/app/:id', async (req, res) => {
     } catch (error) {
         console.error('Error fetching application:', error);
         res.status(500).send('Error loading application details');
+    }
+});
+
+app.post('/api/applications/install', verifyToken, async (req, res) => {
+    try {
+        const { applicationId } = req.body;
+        const userId = req.user.provider_uid;
+        console.log('\n=== Installing Application ===');
+        console.log('Request:', { applicationId, userId });
+
+        // Input validation
+        if (!applicationId || !userId) {
+            console.log('Missing required fields');
+            return res.status(400).json({
+                success: false,
+                message: 'Missing required fields'
+            });
+        }
+
+        // Verify the application exists
+        const application = await Application.findById(applicationId);
+        if (!application) {
+            console.log('Application not found:', applicationId);
+            return res.status(404).json({ 
+                success: false, 
+                message: 'Application not found' 
+            });
+        }
+        console.log('Found application:', { id: application._id, title: application.title });
+
+        // Create new installation record
+        const installation = new InstalledApp({
+            application_id: application._id,
+            user_id: userId,
+            installed_date: new Date()
+        });
+
+        // Debug: Show installation object before saving
+        console.log('\nInstallation to save:', installation.toObject());
+
+        // Save the installation
+        const savedInstallation = await installation.save();
+        console.log('\nSaved installation:', savedInstallation.toObject());
+
+        // Verify the installation was saved
+        const verifyInstall = await InstalledApp.findById(savedInstallation._id);
+        console.log('\nVerified installation exists:', verifyInstall ? 'Yes' : 'No');
+
+        // Update application's installed count
+        await Application.findByIdAndUpdate(
+            applicationId,
+            { $inc: { installed_count: 1 } }
+        );
+
+        res.json({ 
+            success: true, 
+            message: 'Application installed successfully',
+            installation: savedInstallation
+        });
+
+    } catch (error) {
+        console.error('Installation error:', error);
+        res.status(500).json({ 
+            success: false, 
+            message: 'Failed to install application',
+            error: error.message
+        });
     }
 });
 
