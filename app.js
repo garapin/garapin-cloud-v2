@@ -525,6 +525,17 @@ app.get(['/publish', '/publish/:id'], async (req, res) => {
 // Add route for installed apps
 app.get('/my-apps/installed', async (req, res) => {
     try {
+        // Helper function for cleaning description
+        const cleanAndTruncateDescription = (description) => {
+            if (!description) return 'No description available';
+            
+            return description
+                .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+                .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
+                .replace(/<(?!\/?(b|strong|i|em|mark|small|del|ins|sub|sup)(?=>|\s.*>))\/?(?:.|\s)*?>/g, '')
+                .substring(0, 100) + (description.length > 100 ? '....' : '');
+        };
+
         // Get token from header
         const authHeader = req.headers.authorization;
         console.log('\n=== Fetching Installed Apps ===');
@@ -537,7 +548,8 @@ app.get('/my-apps/installed', async (req, res) => {
                 applications: [],
                 user: null,
                 pageTitle: 'Installed Apps',
-                currentPage: 'installed-apps'
+                currentPage: 'installed-apps',
+                cleanAndTruncateDescription
             });
         }
 
@@ -553,7 +565,8 @@ app.get('/my-apps/installed', async (req, res) => {
                 applications: [],
                 user: null,
                 pageTitle: 'Installed Apps',
-                currentPage: 'installed-apps'
+                currentPage: 'installed-apps',
+                cleanAndTruncateDescription
             });
         }
 
@@ -565,23 +578,19 @@ app.get('/my-apps/installed', async (req, res) => {
             user_id: user.provider_uid  // Use Firebase UID
         }).populate({
             path: 'application_id',
-            model: 'Application'
+            model: 'Application',
+            select: 'title description logo rating installed_count app_url base_image'
         }).sort({ installed_at: -1 });
 
         console.log('Found installed apps:', installedApps.length);
-        console.log('Installed apps data:', installedApps.map(app => ({
-            id: app._id,
-            application: app.application_id?.title,
-            status: app.status,
-            installed_at: app.installed_at
-        })));
 
         res.render('installed-apps', {
             firebaseConfig,
             applications: installedApps,
             user: user,
             pageTitle: 'Installed Apps',
-            currentPage: 'installed-apps'
+            currentPage: 'installed-apps',
+            cleanAndTruncateDescription
         });
 
     } catch (error) {

@@ -12,6 +12,7 @@ const installedAppSchema = new mongoose.Schema({
     },
     status: {
         type: String,
+        enum: ['init', 'pending', 'completed', 'failed'],
         default: 'init'
     },
     installed_at: {
@@ -19,6 +20,9 @@ const installedAppSchema = new mongoose.Schema({
         default: Date.now
     },
     deployment_details: {
+        type: Object
+    },
+    deployment_response: {
         type: Object
     }
 }, {
@@ -29,6 +33,6 @@ const installedAppSchema = new mongoose.Schema({
 // Create a compound index to allow multiple installations of the same app
 installedAppSchema.index({ application_id: 1, user_id: 1 });
 
-const InstalledApp = mongoose.model('InstalledApp', installedAppSchema, 'installed_apps');
+const InstalledApp = mongoose.model('InstalledApp', installedAppSchema);
 
 module.exports = InstalledApp; 

@@ -66,24 +66,19 @@
                                                     <small class="text-muted">(<%= app.installed_count || 0 %> installs)</small>
                                                 </div>
                                                 <p class="card-text text-muted">
-                                                    <%= app.description
-                                                        .replace(/&[a-z0-9]+;/gi, ' ')
-                                                        .replace(/<[^>]*>/g, '')
-                                                        .replace(/\s+/g, ' ')
-                                                        .trim()
-                                                        .substring(0, 100) %>...
+                                                    <%- cleanAndTruncateDescription(app.description) %>
                                                 </p>
-                                                <div class="d-flex justify-content-between align-items-center">
-                                                    <div class="price">
-                                                        <strong>Rp. <%= app.price.toLocaleString('id-ID') %></strong> / Month
+                                                <div class="d-flex justify-content-between align-items-center mt-3">
+                                                    <div class="text-muted small">
+                                                        <strong><%= installed.status.charAt(0).toUpperCase() + installed.status.slice(1) %></strong><br>
+                                                        <%= new Date(installed.installed_at).toLocaleDateString('en-GB', { 
+                                                            day: '2-digit',
+                                                            month: '2-digit',
+                                                            year: '2-digit'
+                                                        }).replace(/\//g, '-') %>
                                                     </div>
-                                                    <small class="text-muted">
-                                                        Installed <%= new Date(installed.installed_at).toLocaleDateString() %>
-                                                    </small>
-                                                </div>
-                                                <div class="mt-3">
-                                                    <a href="/store/app/<%= app._id %>" class="btn btn-outline-primary btn-sm w-100">
-                                                        <i class="bi bi-box-arrow-up-right me-1"></i> Open Application
+                                                    <a href="<%= app.app_url || '#' %>" target="_blank" class="btn btn-primary btn-sm <%= !app.app_url ? 'disabled' : '' %>">
+                                                        <i class="bi bi-box-arrow-up-right"></i> Open App
                                                     </a>
                                                 </div>
                                             </div>
