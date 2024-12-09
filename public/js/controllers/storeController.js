@@ -7,6 +7,28 @@ document.addEventListener('DOMContentLoaded', function() {
     const installModal = new bootstrap.Modal(document.getElementById('installConfirmModal'));
     const appNameElement = document.getElementById('appNameToInstall');
     
+    // Toast initialization
+    const toastElement = document.getElementById('appToast');
+    const toast = new bootstrap.Toast(toastElement, { delay: 3000 });
+
+    // Function to show toast messages
+    function showToast(message, type = 'success') {
+        const toastBody = toastElement.querySelector('.toast-body');
+        toastBody.textContent = message;
+        
+        // Remove previous classes
+        toastElement.classList.remove('bg-success', 'bg-danger', 'text-white');
+        
+        // Add appropriate styling based on type
+        if (type === 'success') {
+            toastElement.classList.add('bg-success', 'text-white');
+        } else if (type === 'error') {
+            toastElement.classList.add('bg-danger', 'text-white');
+        }
+        
+        toast.show();
+    }
+    
     // Handle install button clicks
     document.querySelectorAll('.install-btn').forEach(button => {
         button.addEventListener('click', function() {
@@ -20,16 +42,26 @@ document.addEventListener('DOMContentLoaded', function() {
     // Handle confirm installation
     document.getElementById('confirmInstall').addEventListener('click', async function() {
         try {
+            // Show loading spinner and disable buttons
+            const spinner = document.getElementById('installSpinner');
+            const confirmButton = document.getElementById('confirmInstall');
+            const cancelButton = confirmButton.previousElementSibling;
+            const closeButton = document.querySelector('#installConfirmModal .btn-close');
+            
+            spinner.style.display = 'block';
+            confirmButton.disabled = true;
+            cancelButton.disabled = true;
+            closeButton.style.display = 'none';
+
             // Get the current user's ID token
             const user = firebase.auth().currentUser;
             if (!user) {
-                alert('Please login to install applications');
-                return;
+                throw new Error('Please login to install applications');
             }
             
             const idToken = await user.getIdToken();
             
-            // Get current timestamp in YYMMDDHHMMSS format
+            // Get current timestamp in the required format YYMMDDHHMMSS
             const now = new Date();
             const index = now.getFullYear().toString().slice(-2) +
                          String(now.getMonth() + 1).padStart(2, '0') +
@@ -37,7 +69,7 @@ document.addEventListener('DOMContentLoaded', function() {
                          String(now.getHours()).padStart(2, '0') +
                          String(now.getMinutes()).padStart(2, '0') +
                          String(now.getSeconds()).padStart(2, '0');
-            
+
             // Make API call to get deployment details
             const response = await fetch(`/store/install/${selectedAppId}`, {
                 method: 'POST',
@@ -58,30 +90,52 @@ document.addEventListener('DOMContentLoaded', function() {
                     body: data.apiDetails.body
                 });
 
-                alert('Installation initiated successfully!');
-                installModal.hide();
+                showToast('Installation initiated successfully!', 'success');
+                
+                // Hide spinner and close modal
+                spinner.style.display = 'none';
+                bootstrap.Modal.getInstance(document.getElementById('installConfirmModal')).hide();
                 
                 // Redirect to installed apps page
-                window.location.href = '/my-apps/installed';
+                setTimeout(() => {
+                    window.location.href = '/my-apps/installed';
+                }, 1000);
             } else {
                 throw new Error(data.error || 'Failed to initiate installation');
             }
         } catch (error) {
             console.error('Installation error:', error);
-            alert(error.message);
+            showToast(error.message || 'Failed to install application', 'error');
+            
+            // Reset modal state
+            const spinner = document.getElementById('installSpinner');
+            const confirmButton = document.getElementById('confirmInstall');
+            const cancelButton = confirmButton.previousElementSibling;
+            const closeButton = document.querySelector('#installConfirmModal .btn-close');
+            
+            spinner.style.display = 'none';
+            confirmButton.disabled = false;
+            cancelButton.disabled = false;
+            closeButton.style.display = 'block';
         }
     });
 
     // Search functionality
     const searchInput = document.getElementById('searchApps');
     if (searchInput) {
-        searchInput.addEventListener('input', function() {
-            const searchTerm = this.value.toLowerCase();
-            document.querySelectorAll('.card').forEach(card => {
+        searchInput.addEventListener('input', function(e) {
+            const searchTerm = e.target.value.toLowerCase();
+            const appCards = document.querySelectorAll('.app-card');
+            
+            appCards.forEach(card => {
                 const title = card.querySelector('.card-title').textContent.toLowerCase();
                 const description = card.querySelector('.card-text').textContent.toLowerCase();
-                const isVisible = title.includes(searchTerm) || description.includes(searchTerm);
-                card.closest('.col').style.display = isVisible ? '' : 'none';
+                
+                if (title.includes(searchTerm) || description.includes(searchTerm)) {
+                    card.style.display = '';
+                } else {
+                    card.style.display = 'none';
+                }
             });
         });
     }
