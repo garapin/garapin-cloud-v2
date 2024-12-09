@@ -61,13 +61,17 @@ router.post('/install/:appId', async (req, res) => {
             return res.status(404).json({ error: 'User not found' });
         }
 
+        if (!user.namespace) {
+            return res.status(400).json({ error: 'User namespace not configured' });
+        }
+
         // Prepare the API details
         const apiUrl = process.env.DEPLOYMENT_API_URL;
         const apiUser = process.env.DEPLOYMENT_API_USER;
         const apiKey = process.env.DEPLOYMENT_API_KEY;
 
         const requestBody = {
-            client_namespace: user.provider_uid,
+            client_namespace: user.namespace,
             client_id: user.provider_uid,
             base_image: application.base_image,
             index: index
@@ -91,63 +95,51 @@ router.post('/install/:appId', async (req, res) => {
         await installedApp.save();
         console.log('Created new installation:', installedApp);
 
-        // Hit the deployment API
+        // Prepare API call details
+        const apiDetails = {
+            url: apiUrl,
+            headers: {
+                [apiUser]: apiKey,
+                'Content-Type': 'application/json'
+            },
+            body: requestBody
+        };
+
+        console.log('Making API call with details:', JSON.stringify(apiDetails, null, 2));
+
+        // Make the actual API call
+        const response = await fetch(apiUrl, {
+            method: 'POST',
+            headers: apiDetails.headers,
+            body: JSON.stringify(apiDetails.body)
+        });
+
+        const responseText = await response.text();
+        console.log('API Response:', responseText);
+
+        let responseData;
         try {
-            const headers = {
-                'Content-Type': 'application/json',
-                [apiUser]: apiKey
-            };
-
-            console.log('Calling deployment API:', {
-                url: apiUrl,
-                headers,
-                body: requestBody
-            });
-
-            const deploymentResponse = await fetch(apiUrl, {
-                method: 'POST',
-                headers,
-                body: JSON.stringify(requestBody)
-            });
-
-            const responseText = await deploymentResponse.text();
-            console.log('Deployment API raw response:', responseText);
-
-            if (!deploymentResponse.ok) {
-                throw new Error(`Deployment API error: ${deploymentResponse.status} - ${responseText}`);
-            }
-
-            const deploymentResult = responseText ? JSON.parse(responseText) : {};
-            console.log('Deployment API parsed response:', deploymentResult);
-
-            // Return success response
-            res.json({ 
-                success: true, 
-                apiDetails: {
-                    url: apiUrl,
-                    headers: {
-                        [apiUser]: apiKey
-                    },
-                    body: requestBody
-                },
-                deploymentResult,
-                message: 'Installation initiated successfully'
-            });
-        } catch (deployError) {
-            console.error('Deployment API error:', deployError);
-            // Still return success since we saved the installation
-            res.json({ 
-                success: true, 
-                apiDetails: {
-                    url: apiUrl,
-                    headers: {
-                        [apiUser]: apiKey
-                    },
-                    body: requestBody
-                },
-                message: 'Installation saved successfully, but deployment API call failed'
-            });
+            responseData = JSON.parse(responseText);
+        } catch (e) {
+            responseData = { rawResponse: responseText };
         }
+
+        if (!response.ok) {
+            throw new Error(`Deployment API error: ${response.status} - ${responseText}`);
+        }
+
+        // Update installation status
+        installedApp.status = 'pending';
+        installedApp.deployment_response = responseData;
+        await installedApp.save();
+
+        // Return success response with API details and response
+        res.json({ 
+            success: true, 
+            apiDetails,
+            deploymentResponse: responseData,
+            message: 'Installation initiated successfully'
+        });
 
     } catch (error) {
         console.error('Installation error:', error);

@@ -86,3 +86,59 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 }); 
+
+function install(appId) {
+    // Get the current timestamp in the required format DDMMYYHHMMSS
+    const now = new Date();
+    const index = now.getDate().toString().padStart(2, '0') +
+                 (now.getMonth() + 1).toString().padStart(2, '0') +
+                 now.getFullYear().toString().slice(-2) +
+                 now.getHours().toString().padStart(2, '0') +
+                 now.getMinutes().toString().padStart(2, '0') +
+                 now.getSeconds().toString().padStart(2, '0');
+
+    // Show loading state
+    const installButton = document.querySelector(`button[data-app-id="${appId}"]`);
+    const originalText = installButton.textContent;
+    installButton.disabled = true;
+    installButton.textContent = 'Installing...';
+
+    // Get the auth token
+    firebase.auth().currentUser.getIdToken(true)
+        .then(token => {
+            return fetch(`/store/install/${appId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ index })
+            });
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Log the API details that would be called
+                console.log('Installation API Details:', data.apiDetails);
+                
+                // Show success message
+                showToast('Installation record created. API details logged to console.', 'success');
+                
+                // Optionally update UI or redirect
+                setTimeout(() => {
+                    window.location.href = '/installed-apps';
+                }, 2000);
+            } else {
+                throw new Error(data.error || 'Installation failed');
+            }
+        })
+        .catch(error => {
+            console.error('Installation error:', error);
+            showToast(error.message || 'Failed to install application', 'error');
+        })
+        .finally(() => {
+            // Reset button state
+            installButton.disabled = false;
+            installButton.textContent = originalText;
+        });
+} 

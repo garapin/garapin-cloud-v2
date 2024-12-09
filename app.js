@@ -190,6 +190,46 @@ app.get('/', (req, res) => {
     res.render('login', { firebaseConfig });
 });
 
+// Generate a random namespace (8 chars, starts with letter, alphanumeric)
+function generateNamespace() {
+    const letters = 'abcdefghijklmnopqrstuvwxyz';
+    const alphanumeric = 'abcdefghijklmnopqrstuvwxyz0123456789';
+    
+    // First character must be a letter
+    let namespace = letters.charAt(Math.floor(Math.random() * letters.length));
+    
+    // Generate remaining 7 characters (can be letters or numbers)
+    for (let i = 0; i < 7; i++) {
+        namespace += alphanumeric.charAt(Math.floor(Math.random() * alphanumeric.length));
+    }
+    
+    return namespace;
+}
+
+// Function to generate unique namespace
+async function generateUniqueNamespace() {
+    let namespace;
+    let isUnique = false;
+    let attempts = 0;
+    const maxAttempts = 10;
+
+    while (!isUnique && attempts < maxAttempts) {
+        namespace = generateNamespace();
+        // Check if namespace exists
+        const existingUser = await User.findOne({ namespace });
+        if (!existingUser) {
+            isUnique = true;
+        }
+        attempts++;
+    }
+
+    if (!isUnique) {
+        throw new Error('Could not generate unique namespace after maximum attempts');
+    }
+
+    return namespace;
+}
+
 app.post('/auth/user', verifyToken, async (req, res) => {
     try {
         const { name, email, provider_uid, photoURL } = req.body;
@@ -201,30 +241,51 @@ app.post('/auth/user', verifyToken, async (req, res) => {
         let user = await User.findOne({ email });
 
         if (!user) {
-            // If user doesn't exist, create new user
+            // If user doesn't exist, create new user with namespace
+            const namespace = await generateUniqueNamespace();
             user = await User.create({
                 name,
                 email,
                 provider: 'google',
                 provider_uid,
                 photoURL,
+                namespace,
                 created_at: jakartaTime,
                 updated_at: jakartaTime,
                 last_login_at: jakartaTime
             });
+            console.log('Created new user with namespace:', namespace);
         } else {
-            // If user exists, update login info and other fields
-            user = await User.findOneAndUpdate(
-                { email },
-                {
-                    provider_uid, // Update provider_uid if changed
-                    photoURL,     // Update photo if changed
-                    name,         // Update name if changed
-                    last_login_at: jakartaTime,
-                    updated_at: jakartaTime
-                },
-                { new: true }
-            );
+            // If user exists but doesn't have namespace, generate one
+            if (!user.namespace) {
+                const namespace = await generateUniqueNamespace();
+                user = await User.findOneAndUpdate(
+                    { email },
+                    {
+                        provider_uid,
+                        photoURL,
+                        name,
+                        namespace,
+                        last_login_at: jakartaTime,
+                        updated_at: jakartaTime
+                    },
+                    { new: true }
+                );
+                console.log('Added namespace to existing user:', namespace);
+            } else {
+                // Just update other fields if namespace exists
+                user = await User.findOneAndUpdate(
+                    { email },
+                    {
+                        provider_uid,
+                        photoURL,
+                        name,
+                        last_login_at: jakartaTime,
+                        updated_at: jakartaTime
+                    },
+                    { new: true }
+                );
+            }
         }
 
         console.log('User updated/created:', user);
