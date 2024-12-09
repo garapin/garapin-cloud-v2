@@ -10,9 +10,16 @@ const installedAppSchema = new mongoose.Schema({
         type: String,
         required: true
     },
-    installed_date: {
+    status: {
+        type: String,
+        default: 'init'
+    },
+    installed_at: {
         type: Date,
         default: Date.now
+    },
+    deployment_details: {
+        type: Object
     }
 }, {
     timestamps: true,

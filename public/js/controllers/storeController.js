@@ -29,49 +29,46 @@ document.addEventListener('DOMContentLoaded', function() {
             
             const idToken = await user.getIdToken();
             
-            // Log the installation attempt
-            console.log('Attempting to install application:', {
-                applicationId: selectedAppId,
-                userId: user.uid,
-                userToken: 'Bearer ' + idToken.substring(0, 10) + '...'
-            });
+            // Get current timestamp in YYMMDDHHMMSS format
+            const now = new Date();
+            const index = now.getFullYear().toString().slice(-2) +
+                         String(now.getMonth() + 1).padStart(2, '0') +
+                         String(now.getDate()).padStart(2, '0') +
+                         String(now.getHours()).padStart(2, '0') +
+                         String(now.getMinutes()).padStart(2, '0') +
+                         String(now.getSeconds()).padStart(2, '0');
             
-            // Make API call to install the application
-            const response = await fetch('/api/applications/install', {
+            // Make API call to get deployment details
+            const response = await fetch(`/store/install/${selectedAppId}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${idToken}`
                 },
-                body: JSON.stringify({
-                    applicationId: selectedAppId,
-                    userId: user.uid
-                })
+                body: JSON.stringify({ index })
             });
             
             const data = await response.json();
-            console.log('Installation response:', data);
             
             if (response.ok && data.success) {
-                // Update the install count in the UI
-                const appCard = document.querySelector(`[data-app-id="${selectedAppId}"]`).closest('.card');
-                const installCountElement = appCard.querySelector('.text-muted');
-                const currentCount = parseInt(installCountElement.textContent.match(/\d+/)[0]);
-                installCountElement.textContent = `(${currentCount + 1} installs)`;
+                // Log the API details that would be called
+                console.log('API that will be called:', {
+                    url: data.apiDetails.url,
+                    headers: data.apiDetails.headers,
+                    body: data.apiDetails.body
+                });
+
+                alert('Installation initiated successfully!');
+                installModal.hide();
                 
-                alert('Application installed successfully!');
-                // Optionally refresh the page or update UI
-                setTimeout(() => {
-                    window.location.href = '/my-apps/installed';
-                }, 1000);
+                // Redirect to installed apps page
+                window.location.href = '/my-apps/installed';
             } else {
-                throw new Error(data.error || data.message || 'Failed to install application');
+                throw new Error(data.error || 'Failed to initiate installation');
             }
         } catch (error) {
             console.error('Installation error:', error);
             alert(error.message);
-        } finally {
-            installModal.hide();
         }
     });
 

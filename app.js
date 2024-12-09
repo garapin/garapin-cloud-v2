@@ -183,6 +183,9 @@ const checkAuth = async (req, res, next) => {
 app.use(checkAuth);
 
 // Routes
+const storeRouter = require('./routes/store');
+app.use('/store', storeRouter);
+
 app.get('/', (req, res) => {
     res.render('login', { firebaseConfig });
 });
@@ -479,43 +482,50 @@ app.get('/my-apps/installed', async (req, res) => {
 
         const token = authHeader.split('Bearer ')[1];
         const decodedToken = await admin.auth().verifyIdToken(token);
-        const userId = decodedToken.uid;
-        console.log('Authenticated user ID:', userId);
-
-        // Get installed apps with populated application data
-        const installedApps = await InstalledApp.find({ user_id: userId })
-            .populate('application_id')
-            .sort({ installed_date: -1 });
-
-        console.log('Found installed apps:', installedApps.length);
-
-        // Filter out any null application_id entries
-        const validApps = installedApps.filter(app => app.application_id != null);
-        console.log('Valid apps after filtering:', validApps.length);
-
-        // Return JSON if requested
-        if (req.headers.accept?.includes('application/json')) {
-            return res.json({ applications: validApps });
+        
+        // Get MongoDB user using Firebase UID
+        const user = await User.findOne({ provider_uid: decodedToken.uid });
+        if (!user) {
+            console.log('User not found');
+            return res.render('installed-apps', { 
+                firebaseConfig,
+                applications: [],
+                user: null,
+                pageTitle: 'Installed Apps',
+                currentPage: 'installed-apps'
+            });
         }
 
-        // Get user data for view
-        const userData = await User.findOne({ provider_uid: userId });
+        console.log('Found user:', user._id);
+        console.log('User provider_uid:', user.provider_uid);
 
-        // Render the view
+        // Get installed apps with populated application data
+        const installedApps = await InstalledApp.find({ 
+            user_id: user.provider_uid  // Use Firebase UID
+        }).populate({
+            path: 'application_id',
+            model: 'Application'
+        }).sort({ installed_at: -1 });
+
+        console.log('Found installed apps:', installedApps.length);
+        console.log('Installed apps data:', installedApps.map(app => ({
+            id: app._id,
+            application: app.application_id?.title,
+            status: app.status,
+            installed_at: app.installed_at
+        })));
+
         res.render('installed-apps', {
             firebaseConfig,
-            applications: validApps,
-            user: userData,
+            applications: installedApps,
+            user: user,
             pageTitle: 'Installed Apps',
             currentPage: 'installed-apps'
         });
 
     } catch (error) {
         console.error('Error fetching installed apps:', error);
-        if (req.headers.accept?.includes('application/json')) {
-            return res.status(500).json({ error: 'Error loading installed applications' });
-        }
-        res.status(500).send('Error loading installed applications');
+        res.status(500).send('Error loading installed apps');
     }
 });
 
