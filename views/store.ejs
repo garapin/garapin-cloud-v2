@@ -117,6 +117,16 @@
                         </div>
                         <p class="mt-2">Installing application, please wait...</p>
                     </div>
+                    <!-- Installation Progress (hidden by default) -->
+                    <div id="progressBarContainer" class="mt-4" style="display: none;">
+                        <p id="progressText" class="text-center mb-2">Initiating installation...</p>
+                        <div class="progress">
+                            <div id="installProgressBar" class="progress-bar progress-bar-striped progress-bar-animated" 
+                                 role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" 
+                                 style="width: 0%">
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>

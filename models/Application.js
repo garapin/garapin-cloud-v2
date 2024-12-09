@@ -57,7 +57,11 @@ const applicationSchema = new mongoose.Schema({
         full_path: String
     }],
     software_included: [String],
-    base_image: String,
+    base_image: [{
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'base_images',
+        required: true
+    }],
     publisher: {
         type: mongoose.Types.ObjectId,
         ref: 'User',

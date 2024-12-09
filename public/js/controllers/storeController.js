@@ -2,6 +2,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Initialize variables
     let selectedAppId = null;
     let selectedAppTitle = null;
+    let installationCheckInterval = null;
     
     // Get modal elements
     const installModal = new bootstrap.Modal(document.getElementById('installConfirmModal'));
@@ -10,6 +11,11 @@ document.addEventListener('DOMContentLoaded', function() {
     // Toast initialization
     const toastElement = document.getElementById('appToast');
     const toast = new bootstrap.Toast(toastElement, { delay: 3000 });
+
+    // Progress bar elements
+    const progressBarContainer = document.getElementById('progressBarContainer');
+    const progressBar = document.getElementById('installProgressBar');
+    const progressText = document.getElementById('progressText');
 
     // Function to show toast messages
     function showToast(message, type = 'success') {
@@ -27,6 +33,69 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         toast.show();
+    }
+
+    // Function to update progress bar
+    function updateProgress(current, total) {
+        if (!current || !total) {
+            console.log('Invalid progress values:', { current, total });
+            return;
+        }
+        console.log('Updating progress:', { current, total });
+        const percentage = (current / total) * 100;
+        progressBar.style.width = `${percentage}%`;
+        progressBar.setAttribute('aria-valuenow', percentage);
+        progressText.textContent = `Installing image ${current} of ${total}...`;
+    }
+
+    // Function to check installation status
+    async function checkInstallationStatus(installationId) {
+        try {
+            console.log('Checking installation status for:', installationId);
+            const user = firebase.auth().currentUser;
+            if (!user) throw new Error('User not authenticated');
+            
+            const idToken = await user.getIdToken();
+            const response = await fetch(`/store/installation-status/${installationId}`, {
+                headers: {
+                    'Authorization': `Bearer ${idToken}`
+                }
+            });
+            
+            if (!response.ok) {
+                throw new Error('Failed to fetch installation status');
+            }
+
+            const data = await response.json();
+            console.log('Installation status:', data);
+            
+            if (data.status === 'completed') {
+                clearInterval(installationCheckInterval);
+                progressText.textContent = 'Installation completed successfully!';
+                progressBar.classList.remove('progress-bar-striped', 'progress-bar-animated');
+                progressBar.style.width = '100%';
+                showToast('Installation completed successfully!', 'success');
+                setTimeout(() => {
+                    window.location.href = '/my-apps/installed';
+                }, 2000);
+            } else if (data.status === 'failed') {
+                clearInterval(installationCheckInterval);
+                progressText.textContent = 'Installation failed';
+                progressBar.classList.remove('progress-bar-striped', 'progress-bar-animated');
+                progressBar.classList.add('bg-danger');
+                showToast('Installation failed. Please try again.', 'error');
+            } else if (data.status === 'pending' || data.status === 'init') {
+                if (data.current_image === 0) {
+                    progressText.textContent = data.status === 'init' ? 'Preparing installation...' : 'Installing...';
+                } else {
+                    updateProgress(data.current_image, data.total_images);
+                }
+            }
+        } catch (error) {
+            console.error('Error checking installation status:', error);
+            clearInterval(installationCheckInterval);
+            showToast('Error checking installation status', 'error');
+        }
     }
     
     // Handle install button clicks
@@ -53,6 +122,9 @@ document.addEventListener('DOMContentLoaded', function() {
             cancelButton.disabled = true;
             closeButton.style.display = 'none';
 
+            // Show progress text
+            progressText.textContent = 'Installing application...';
+
             // Get the current user's ID token
             const user = firebase.auth().currentUser;
             if (!user) {
@@ -63,14 +135,17 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // Get current timestamp in the required format YYMMDDHHMMSS
             const now = new Date();
-            const index = now.getFullYear().toString().slice(-2) +
-                         String(now.getMonth() + 1).padStart(2, '0') +
-                         String(now.getDate()).padStart(2, '0') +
-                         String(now.getHours()).padStart(2, '0') +
-                         String(now.getMinutes()).padStart(2, '0') +
-                         String(now.getSeconds()).padStart(2, '0');
+            const index = 
+                now.getFullYear().toString().slice(-2) +
+                String(now.getMonth() + 1).padStart(2, '0') +
+                String(now.getDate()).padStart(2, '0') +
+                String(now.getHours()).padStart(2, '0') +
+                String(now.getMinutes()).padStart(2, '0') +
+                String(now.getSeconds()).padStart(2, '0');
 
-            // Make API call to get deployment details
+            console.log('Starting installation with index:', index);
+
+            // Make API call to start installation
             const response = await fetch(`/store/install/${selectedAppId}`, {
                 method: 'POST',
                 headers: {
@@ -81,25 +156,12 @@ document.addEventListener('DOMContentLoaded', function() {
             });
             
             const data = await response.json();
+            console.log('Installation response:', data);
             
             if (response.ok && data.success) {
-                // Log the API details that would be called
-                console.log('API that will be called:', {
-                    url: data.apiDetails.url,
-                    headers: data.apiDetails.headers,
-                    body: data.apiDetails.body
-                });
-
-                showToast('Installation initiated successfully!', 'success');
-                
-                // Hide spinner and close modal
-                spinner.style.display = 'none';
-                bootstrap.Modal.getInstance(document.getElementById('installConfirmModal')).hide();
-                
+                showToast('Installation started successfully', 'success');
                 // Redirect to installed apps page
-                setTimeout(() => {
-                    window.location.href = '/my-apps/installed';
-                }, 1000);
+                window.location.href = data.redirect || '/my-apps/installed';
             } else {
                 throw new Error(data.error || 'Failed to initiate installation');
             }
