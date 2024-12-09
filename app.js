@@ -529,11 +529,21 @@ app.get('/my-apps/installed', async (req, res) => {
         const cleanAndTruncateDescription = (description) => {
             if (!description) return 'No description available';
             
-            return description
+            const cleanDesc = description
                 .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
                 .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
-                .replace(/<(?!\/?(b|strong|i|em|mark|small|del|ins|sub|sup)(?=>|\s.*>))\/?(?:.|\s)*?>/g, '')
-                .substring(0, 100) + (description.length > 100 ? '....' : '');
+                .replace(/<(?!\/?(b|strong|i|em|mark|small|del|ins|sub|sup)(?=>|\s.*>))\/?(?:.|\s)*?>/g, '');
+
+            if (cleanDesc.length <= 100) return cleanDesc;
+
+            // Find the last space within the 100 character limit
+            const truncated = cleanDesc.substr(0, 100);
+            const lastSpace = truncated.lastIndexOf(' ');
+            
+            // If no space found, just cut at 100
+            const breakPoint = lastSpace > 0 ? lastSpace : 100;
+            
+            return cleanDesc.substr(0, breakPoint) + '...';
         };
 
         // Get token from header
