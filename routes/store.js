@@ -52,8 +52,10 @@ router.post('/install/:appId', async (req, res) => {
             return res.status(404).json({ error: 'Application not found' });
         }
 
-        console.log('Found application:', application.title);
-        console.log('Base images:', JSON.stringify(application.base_image, null, 2));
+        console.log('Found main application:', {
+            title: application.title,
+            base_images: application.base_image.map(img => img.toString())
+        });
 
         // Get user from auth token
         const authHeader = req.headers.authorization;
@@ -86,82 +88,200 @@ router.post('/install/:appId', async (req, res) => {
             return res.status(400).json({ error: 'No base images configured for this application' });
         }
 
-        // Create a record in installed_apps collection
-        const installedApp = new InstalledApp({
-            user_id: user.provider_uid,
-            application_id: appId,
-            status: 'pending',
-            installed_at: new Date(),
-            deployment_details: []
+        // Track applications to install and their base images
+        const appsToInstall = new Map(); // Map<appId, Application>
+        const baseImagesToProcess = new Set(); // Set<baseImageId>
+
+        // Add main application
+        appsToInstall.set(appId, application);
+        console.log('Step 1: Adding main application base images');
+        
+        // First add main base image
+        if (application.main_base_image) {
+            const mainBaseImg = application.main_base_image.toString();
+            baseImagesToProcess.add(mainBaseImg);
+            console.log(`- Added main base image: ${mainBaseImg}`);
+        }
+
+        // Then add other base images (excluding main base image)
+        application.base_image.forEach(img => {
+            const imgStr = img.toString();
+            if (!application.main_base_image || imgStr !== application.main_base_image.toString()) {
+                baseImagesToProcess.add(imgStr);
+                console.log(`- Added additional base image: ${imgStr}`);
+            }
         });
 
-        await installedApp.save();
-        console.log('Created new installation:', installedApp._id.toString());
+        // Function to find applications that share base images
+        async function findRelatedApplications(baseImages) {
+            // Find applications that use any of these base images as their main base image
+            const apps = await Application.find({
+                'main_base_image': { $in: Array.from(baseImages) }
+            });
 
-        // Process each base image
-        for (const baseImageId of application.base_image) {
+            let foundNewBaseImages = false;
+            for (const app of apps) {
+                // Add app to installation list if not already added
+                if (!appsToInstall.has(app._id.toString())) {
+                    appsToInstall.set(app._id.toString(), app);
+                    console.log(`- Added ${app.title} to installation list (uses main base image: ${app.main_base_image})`);
+
+                    // Add non-main base images from this app
+                    app.base_image.forEach(img => {
+                        const imgStr = img.toString();
+                        if ((!app.main_base_image || imgStr !== app.main_base_image.toString()) && 
+                            !baseImagesToProcess.has(imgStr)) {
+                            baseImagesToProcess.add(imgStr);
+                            console.log(`- Added additional base image: ${imgStr} from ${app.title}`);
+                            foundNewBaseImages = true;
+                        }
+                    });
+                }
+            }
+
+            // If we found new base images, search for more applications
+            if (foundNewBaseImages) {
+                await findRelatedApplications(baseImagesToProcess);
+            }
+        }
+
+        // Find all related applications recursively
+        console.log('\nStep 2: Finding all related applications');
+        await findRelatedApplications(baseImagesToProcess);
+
+        // Create installation records array
+        const installationRecords = [];
+
+        // Create installation records for all applications and update installed_count
+        console.log('\nCreating installation records and updating installed counts:');
+        for (const [id, app] of appsToInstall) {
+            console.log(`Creating record for ${app.title}`);
+            
+            // Create installation record
+            const installation = new InstalledApp({
+                user_id: user.provider_uid,
+                application_id: id,
+                status: 'pending',
+                installed_at: new Date(),
+                deployment_details: []
+            });
+            installationRecords.push(installation);
+
+            // Increment installed_count
+            await Application.findByIdAndUpdate(
+                id,
+                { $inc: { installed_count: 1 } },
+                { new: true }
+            );
+            console.log(`Incremented installed_count for ${app.title}`);
+        }
+
+        // Save all installation records
+        await Promise.all(installationRecords.map(record => record.save()));
+        console.log('Created installation records:', installationRecords.map(record => ({
+            id: record._id.toString(),
+            app: record.application_id
+        })));
+
+        // Process each base image for deployment
+        const baseImageArray = Array.from(baseImagesToProcess);
+        console.log('\nProcessing base images:', baseImageArray);
+
+        for (const baseImageId of baseImageArray) {
+            console.log(`\nDeploying base image: ${baseImageId}`);
+            
             const requestBody = {
                 client_namespace: user.namespace,
                 client_id: user.provider_uid,
-                base_image: baseImageId.toString(),
-                index: index
+                base_image: baseImageId,
+                index: index || 0
             };
 
-            console.log('Request body:', JSON.stringify(requestBody, null, 2));
-
-            const apiDetails = {
+            console.log('API Request:', {
                 url: apiUrl,
                 headers: {
                     [apiUser]: apiKey,
                     'Content-Type': 'application/json'
                 },
                 body: requestBody
-            };
+            });
 
             try {
                 const response = await fetch(apiUrl, {
                     method: 'POST',
-                    headers: apiDetails.headers,
-                    body: JSON.stringify(apiDetails.body)
+                    headers: {
+                        [apiUser]: apiKey,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(requestBody)
                 });
 
                 const responseText = await response.text();
-                console.log('API Response:', responseText);
+                console.log(`API Response for ${baseImageId}:`, responseText);
 
                 if (!response.ok) {
                     throw new Error(`Deployment API error: ${response.status} - ${responseText}`);
                 }
 
-                installedApp.deployment_details.push({
-                    base_image: baseImageId,
-                    api_details: apiDetails,
-                    status: 'pending'
-                });
+                // Update deployment details for installations that use this base image
+                for (const installation of installationRecords) {
+                    const app = await Application.findById(installation.application_id);
+                    if (app && app.base_image.map(img => img.toString()).includes(baseImageId)) {
+                        installation.deployment_details.push({
+                            base_image: baseImageId,
+                            api_details: {
+                                url: apiUrl,
+                                request: requestBody,
+                                response: responseText
+                            },
+                            status: 'pending'
+                        });
+                        await installation.save();
+                    }
+                }
 
             } catch (error) {
-                console.error('Error calling deployment API:', error);
-                installedApp.deployment_details.push({
-                    base_image: baseImageId,
-                    error: error.message,
-                    status: 'failed'
+                console.error(`Error deploying base image ${baseImageId}:`, error);
+                
+                // Mark affected installations as failed
+                for (const installation of installationRecords) {
+                    const app = await Application.findById(installation.application_id);
+                    if (app && app.base_image.map(img => img.toString()).includes(baseImageId)) {
+                        installation.deployment_details.push({
+                            base_image: baseImageId,
+                            error: error.message,
+                            status: 'failed'
+                        });
+                        installation.status = 'failed';
+                        await installation.save();
+                    }
+                }
+                
+                return res.status(500).json({ 
+                    error: 'Failed to process installation',
+                    details: error.message
                 });
-                installedApp.status = 'failed';
-                await installedApp.save();
-                return res.status(500).json({ error: 'Failed to process installation' });
             }
         }
 
-        // Save the final state and return success
-        await installedApp.save();
+        console.log('All deployments completed successfully');
+        
         res.json({ 
             success: true,
             message: 'Installation initiated successfully',
-            redirect: '/my-apps/installed'
+            redirect: '/my-apps/installed',
+            installations: installationRecords.map(record => ({
+                id: record._id,
+                application_id: record.application_id
+            }))
         });
 
     } catch (error) {
         console.error('Installation error:', error);
-        res.status(500).json({ error: 'Failed to process installation' });
+        res.status(500).json({ 
+            error: 'Failed to process installation',
+            details: error.message
+        });
     }
 });
 

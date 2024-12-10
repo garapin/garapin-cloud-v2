@@ -25,6 +25,11 @@
                     </div>
                 </div>
 
+                <!-- No Results Message -->
+                <div class="no-results alert alert-info text-center" style="display: none;">
+                    No applications found matching your search.
+                </div>
+
                 <!-- Applications Grid -->
                 <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 row-cols-xl-4 g-4">
                     <% applications.forEach(app => { %>
@@ -71,8 +76,9 @@
                                             .substring(0, 100) %>...
                                     </p>
                                     <div class="d-flex justify-content-between align-items-center">
-                                        <div class="price">
-                                            <strong>Rp. <%= app.price.toLocaleString('id-ID') %></strong> / Month
+                                        <div class="price d-flex flex-column">
+                                            <strong class="mb-1">Rp. <%= app.price.toLocaleString('id-ID') %></strong>
+                                            <small class="text-muted">per month</small>
                                         </div>
                                         <button class="btn btn-primary install-btn" data-app-id="<%= app._id.toString() %>">
                                             <i class="bi bi-download me-1"></i> Install

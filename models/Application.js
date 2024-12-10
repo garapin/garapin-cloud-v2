@@ -62,6 +62,10 @@ const applicationSchema = new mongoose.Schema({
         ref: 'base_images',
         required: true
     }],
+    main_base_image: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'base_images'
+    },
     publisher: {
         type: mongoose.Types.ObjectId,
         ref: 'User',

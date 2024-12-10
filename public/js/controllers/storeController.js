@@ -36,16 +36,39 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // Function to update progress bar
-    function updateProgress(current, total) {
-        if (!current || !total) {
-            console.log('Invalid progress values:', { current, total });
+    function updateProgress(progress, message) {
+        if (!progress || progress < 0 || progress > 100) {
+            console.log('Invalid progress value:', progress);
             return;
         }
-        console.log('Updating progress:', { current, total });
-        const percentage = (current / total) * 100;
-        progressBar.style.width = `${percentage}%`;
-        progressBar.setAttribute('aria-valuenow', percentage);
-        progressText.textContent = `Installing image ${current} of ${total}...`;
+        console.log('Updating progress:', { progress, message });
+
+        const progressBar = document.getElementById('installProgressBar');
+        const progressText = document.getElementById('progressText');
+
+        // Add transition if not already added
+        if (!progressBar.style.transition) {
+            progressBar.style.transition = 'width 0.5s ease-in-out';
+        }
+
+        progressBar.style.width = `${progress}%`;
+        progressBar.setAttribute('aria-valuenow', progress);
+        if (progressText) {
+            progressText.textContent = message;
+        }
+    }
+
+    // Function to animate progress between two values
+    async function animateProgress(from, to, message, duration = 500) {
+        const steps = 20; // Number of steps for smooth animation
+        const increment = (to - from) / steps;
+        const stepDuration = duration / steps;
+
+        for (let i = 0; i <= steps; i++) {
+            const currentProgress = from + (increment * i);
+            updateProgress(Math.round(currentProgress), message);
+            await new Promise(resolve => setTimeout(resolve, stepDuration));
+        }
     }
 
     // Function to check installation status
@@ -113,17 +136,19 @@ document.addEventListener('DOMContentLoaded', function() {
         try {
             // Show loading spinner and disable buttons
             const spinner = document.getElementById('installSpinner');
+            const progressBarContainer = document.getElementById('progressBarContainer');
             const confirmButton = document.getElementById('confirmInstall');
             const cancelButton = confirmButton.previousElementSibling;
             const closeButton = document.querySelector('#installConfirmModal .btn-close');
             
             spinner.style.display = 'block';
+            progressBarContainer.style.display = 'block';
             confirmButton.disabled = true;
             cancelButton.disabled = true;
             closeButton.style.display = 'none';
 
-            // Show progress text
-            progressText.textContent = 'Installing application...';
+            // Initialize progress bar
+            updateProgress(0, 'Preparing installation...');
 
             // Get the current user's ID token
             const user = firebase.auth().currentUser;
@@ -145,6 +170,9 @@ document.addEventListener('DOMContentLoaded', function() {
 
             console.log('Starting installation with index:', index);
 
+            // Animate progress to 30%
+            await animateProgress(0, 30, 'Preparing installation...');
+
             // Make API call to start installation
             const response = await fetch(`/store/install/${selectedAppId}`, {
                 method: 'POST',
@@ -155,13 +183,21 @@ document.addEventListener('DOMContentLoaded', function() {
                 body: JSON.stringify({ index })
             });
             
+            // Animate progress to 60%
+            await animateProgress(30, 60, 'Processing installation...');
+            
             const data = await response.json();
             console.log('Installation response:', data);
             
             if (response.ok && data.success) {
-                showToast('Installation started successfully', 'success');
-                // Redirect to installed apps page
-                window.location.href = data.redirect || '/my-apps/installed';
+                // Animate to completion
+                await animateProgress(60, 100, 'Installation complete!');
+                
+                setTimeout(() => {
+                    showToast('Installation started successfully', 'success');
+                    // Redirect to installed apps page
+                    window.location.href = data.redirect || '/my-apps/installed';
+                }, 1000);
             } else {
                 throw new Error(data.error || 'Failed to initiate installation');
             }
@@ -171,14 +207,23 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // Reset modal state
             const spinner = document.getElementById('installSpinner');
+            const progressBarContainer = document.getElementById('progressBarContainer');
             const confirmButton = document.getElementById('confirmInstall');
             const cancelButton = confirmButton.previousElementSibling;
             const closeButton = document.querySelector('#installConfirmModal .btn-close');
             
             spinner.style.display = 'none';
+            progressBarContainer.style.display = 'none';
             confirmButton.disabled = false;
             cancelButton.disabled = false;
             closeButton.style.display = 'block';
+            
+            // Reset progress bar with animation
+            await animateProgress(
+                parseInt(document.getElementById('installProgressBar').style.width) || 0,
+                0,
+                'Installation failed'
+            );
         }
     });
 
@@ -187,18 +232,26 @@ document.addEventListener('DOMContentLoaded', function() {
     if (searchInput) {
         searchInput.addEventListener('input', function(e) {
             const searchTerm = e.target.value.toLowerCase();
-            const appCards = document.querySelectorAll('.app-card');
+            const appCards = document.querySelectorAll('.col');
+            let hasVisibleCards = false;
             
             appCards.forEach(card => {
-                const title = card.querySelector('.card-title').textContent.toLowerCase();
-                const description = card.querySelector('.card-text').textContent.toLowerCase();
+                const title = card.querySelector('.card-title')?.textContent.toLowerCase() || '';
+                const description = card.querySelector('.card-text')?.textContent.toLowerCase() || '';
                 
                 if (title.includes(searchTerm) || description.includes(searchTerm)) {
                     card.style.display = '';
+                    hasVisibleCards = true;
                 } else {
                     card.style.display = 'none';
                 }
             });
+
+            // Show/hide no results message
+            const noResultsMessage = document.querySelector('.no-results');
+            if (noResultsMessage) {
+                noResultsMessage.style.display = hasVisibleCards ? 'none' : 'block';
+            }
         });
     }
 }); 

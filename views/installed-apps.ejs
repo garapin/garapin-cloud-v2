@@ -70,12 +70,34 @@
                                                 </p>
                                                 <div class="d-flex justify-content-between align-items-center mt-3">
                                                     <div class="text-muted small">
-                                                        <strong><%= installed.status.charAt(0).toUpperCase() + installed.status.slice(1) %></strong><br>
-                                                        <%= new Date(installed.installed_at).toLocaleDateString('en-GB', { 
+                                                        <% 
+                                                        let statusColor;
+                                                        switch(installed.status.toLowerCase()) {
+                                                            case 'init':
+                                                            case 'pending':
+                                                                statusColor = 'text-warning fw-bold';
+                                                                break;
+                                                            case 'completed':
+                                                                statusColor = 'text-success fw-bold';
+                                                                break;
+                                                            case 'failed':
+                                                                statusColor = 'text-danger fw-bold';
+                                                                break;
+                                                            default:
+                                                                statusColor = 'text-muted';
+                                                        }
+                                                        %>
+                                                        <span class="<%= statusColor %>">
+                                                            <%= installed.status.charAt(0).toUpperCase() + installed.status.slice(1) %>
+                                                        </span><br>
+                                                        <%= new Date(installed.installed_at).toLocaleString('en-GB', { 
                                                             day: '2-digit',
-                                                            month: '2-digit',
-                                                            year: '2-digit'
-                                                        }).replace(/\//g, '-') %>
+                                                            month: 'short',
+                                                            year: '2-digit',
+                                                            hour: '2-digit',
+                                                            minute: '2-digit',
+                                                            hour12: false
+                                                        }).replace(/\//g, '-').replace(',', '').replace(' ', '-').replace(/(\w{3})\s*(\d{2})/, '$1-$2') %>
                                                     </div>
                                                     <a href="<%= app.app_url || '#' %>" target="_blank" class="btn btn-primary btn-sm <%= !app.app_url ? 'disabled' : '' %>">
                                                         <i class="bi bi-box-arrow-up-right"></i> Open App
