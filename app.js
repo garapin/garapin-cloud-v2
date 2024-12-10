@@ -4,6 +4,7 @@ const { initializeApp } = require('firebase/app');
 const admin = require('firebase-admin');
 const mongoose = require('mongoose');
 const moment = require('moment-timezone');
+const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
 require('dotenv').config();
 const multer = require('multer');
 const upload = multer({
@@ -30,6 +31,41 @@ admin.initializeApp({
     }),
     storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET
 });
+
+// Add this function after the Firebase Admin initialization
+async function uploadProfilePictureToStorage(photoURL, uid) {
+    if (!photoURL || !photoURL.startsWith('https')) return null;
+    
+    try {
+        // Fetch the image from Google
+        const response = await fetch(photoURL);
+        if (!response.ok) throw new Error('Failed to fetch profile picture');
+        
+        const buffer = await response.buffer();
+        
+        // Upload to Firebase Storage
+        const bucket = admin.storage().bucket();
+        const filename = `profile-pictures/${uid}.jpg`;
+        const file = bucket.file(filename);
+        
+        await file.save(buffer, {
+            metadata: {
+                contentType: 'image/jpeg'
+            }
+        });
+        
+        // Get a long-lived URL
+        const [url] = await file.getSignedUrl({
+            action: 'read',
+            expires: '03-01-2500' // Long-lived URL
+        });
+        
+        return url;
+    } catch (error) {
+        console.error('Error uploading profile picture:', error);
+        return photoURL; // Fallback to original URL if upload fails
+    }
+}
 
 // MongoDB Connection Setup
 const connectDB = async () => {
@@ -235,6 +271,9 @@ app.post('/auth/user', verifyToken, async (req, res) => {
         const { name, email, provider_uid, photoURL } = req.body;
         console.log('Received user data:', { name, email, provider_uid, photoURL });
 
+        // Upload profile picture to Firebase Storage
+        const storedPhotoURL = await uploadProfilePictureToStorage(photoURL, provider_uid);
+        
         const jakartaTime = moment().tz('Asia/Jakarta').toDate();
 
         // First check if user exists by email
@@ -248,7 +287,7 @@ app.post('/auth/user', verifyToken, async (req, res) => {
                 email,
                 provider: 'google',
                 provider_uid,
-                photoURL,
+                photoURL: storedPhotoURL || photoURL, // Use stored URL if available
                 namespace,
                 created_at: jakartaTime,
                 updated_at: jakartaTime,
@@ -263,7 +302,7 @@ app.post('/auth/user', verifyToken, async (req, res) => {
                     { email },
                     {
                         provider_uid,
-                        photoURL,
+                        photoURL: storedPhotoURL || photoURL, // Use stored URL if available
                         name,
                         namespace,
                         last_login_at: jakartaTime,
@@ -278,7 +317,7 @@ app.post('/auth/user', verifyToken, async (req, res) => {
                     { email },
                     {
                         provider_uid,
-                        photoURL,
+                        photoURL: storedPhotoURL || photoURL, // Use stored URL if available
                         name,
                         last_login_at: jakartaTime,
                         updated_at: jakartaTime
