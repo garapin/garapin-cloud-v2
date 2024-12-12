@@ -1,5 +1,63 @@
 // Ensure headerController is only initialized once
 if (!window.headerControllerInitialized) {
+    // Global auth state flag
+    window.isAuthenticating = false;
+    window.currentUser = null;
+
+    // Global auth handler that other controllers can use
+    window.handleAuthStateChange = async (user) => {
+        if (window.isAuthenticating) return;
+        
+        try {
+            window.isAuthenticating = true;
+            
+            if (user) {
+                const token = await user.getIdToken(true);
+                const response = await fetch('/auth/user', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        name: user.displayName,
+                        email: user.email,
+                        provider_uid: user.uid,
+                        photoURL: user.photoURL
+                    })
+                });
+
+                if (response.ok) {
+                    const userData = await response.json();
+                    localStorage.setItem('authToken', token);
+                    window.currentUser = {
+                        ...user,
+                        name: userData.user.name || user.displayName,
+                        photoURL: userData.user.photoURL || user.photoURL
+                    };
+                    
+                    // If we're on the login page and auth is successful, redirect to dashboard
+                    if (window.location.pathname === '/') {
+                        window.location.href = '/dashboard';
+                    }
+                    return userData;
+                }
+            } else {
+                window.currentUser = null;
+                localStorage.removeItem('authToken');
+                // Only redirect to login if we're not already there
+                if (window.location.pathname !== '/') {
+                    window.location.href = '/';
+                }
+            }
+        } catch (error) {
+            console.error('Auth handler error:', error);
+            throw error;
+        } finally {
+            window.isAuthenticating = false;
+        }
+    };
+
     document.addEventListener('DOMContentLoaded', async () => {
         console.log('HeaderController initializing...');
         
@@ -14,7 +72,7 @@ if (!window.headerControllerInitialized) {
         }
 
         // Function to update UI with user data
-        async function updateUserUI(user) {
+        function updateUserUI(user) {
             const userPhotoContainer = document.getElementById('userPhotoContainer');
             const userName = document.getElementById('userName');
             
@@ -63,45 +121,16 @@ if (!window.headerControllerInitialized) {
 
         // Handle auth state changes
         firebase.auth().onAuthStateChanged(async (user) => {
-            if (user) {
-                // Update UI immediately with Firebase user data
-                updateUserUI(user);
-
-                try {
-                    const token = await user.getIdToken(true); // Force token refresh
-                    const response = await fetch('/auth/user', {
-                        method: 'POST',
-                        headers: {
-                            'Authorization': `Bearer ${token}`,
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            name: user.displayName,
-                            email: user.email,
-                            provider_uid: user.uid,
-                            photoURL: user.photoURL
-                        })
-                    });
-
-                    if (response.ok) {
-                        const userData = await response.json();
-                        localStorage.setItem('authToken', token);
-                        // Update UI with the latest user data, including the name from the server
-                        updateUserUI({
-                            ...user,
-                            name: userData.name || user.displayName,
-                            photoURL: userData.photoURL || user.photoURL
-                        });
-                    }
-                } catch (error) {
-                    console.error('Error updating user data:', error);
+            try {
+                const userData = await window.handleAuthStateChange(user);
+                if (userData) {
+                    updateUserUI(window.currentUser);
+                } else {
+                    updateUserUI(null);
                 }
-            } else {
+            } catch (error) {
+                console.error('Error in auth state change:', error);
                 updateUserUI(null);
-                localStorage.removeItem('authToken');
-                if (window.location.pathname !== '/') {
-                    window.location.href = '/';
-                }
             }
         });
     });

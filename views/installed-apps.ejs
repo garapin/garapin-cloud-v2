@@ -71,24 +71,30 @@
                                                 <div class="d-flex justify-content-between align-items-center mt-3">
                                                     <div class="text-muted small">
                                                         <% 
-                                                        let statusColor;
+                                                        let statusClass;
+                                                        let displayStatus;
                                                         switch(installed.status.toLowerCase()) {
                                                             case 'init':
                                                             case 'pending':
-                                                                statusColor = 'text-warning fw-bold';
+                                                                statusClass = 'badge bg-warning text-dark';
+                                                                displayStatus = 'In Progress..';
                                                                 break;
+                                                            case 'done':
                                                             case 'completed':
-                                                                statusColor = 'text-success fw-bold';
+                                                                statusClass = 'badge bg-success text-white';
+                                                                displayStatus = 'Running';
                                                                 break;
                                                             case 'failed':
-                                                                statusColor = 'text-danger fw-bold';
+                                                                statusClass = 'badge bg-danger text-white';
+                                                                displayStatus = 'Failed';
                                                                 break;
                                                             default:
-                                                                statusColor = 'text-muted';
+                                                                statusClass = 'badge bg-secondary text-white';
+                                                                displayStatus = installed.status.charAt(0).toUpperCase() + installed.status.slice(1);
                                                         }
                                                         %>
-                                                        <span class="<%= statusColor %>">
-                                                            <%= installed.status.charAt(0).toUpperCase() + installed.status.slice(1) %>
+                                                        <span class="<%= statusClass %>" style="border-radius: 4px; padding: 4px 8px;">
+                                                            <%= displayStatus %>
                                                         </span><br>
                                                         <%= new Date(installed.installed_at).toLocaleString('en-GB', { 
                                                             day: '2-digit',

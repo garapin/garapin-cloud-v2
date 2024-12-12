@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { ObjectId } = require('mongodb');
-const Application = require('../models/application');
+const Application = require('../models/Application');
 const BaseImage = require('../models/BaseImage');
 const User = require('../models/User');
 const InstalledApp = require('../models/InstalledApp');

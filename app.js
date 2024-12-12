@@ -15,7 +15,7 @@ const upload = multer({
 });
 
 const User = require('./models/User');
-const Application = require('./models/application');
+const Application = require('./models/Application');
 const categoryController = require('./controllers/categoryController');
 const Category = require('./models/Category');
 const InstalledApp = require('./models/InstalledApp');
@@ -266,6 +266,31 @@ async function generateUniqueNamespace() {
     return namespace;
 }
 
+// Function to create namespace via API
+async function createNamespaceViaAPI(namespace) {
+    try {
+        const response = await fetch(process.env.CREATE_NAMESPACE_API_URL, {
+            method: 'POST',
+            headers: {
+                [process.env.DEPLOYMENT_API_USER]: process.env.DEPLOYMENT_API_KEY,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                client_namespace: namespace
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`Failed to create namespace: ${response.statusText}`);
+        }
+
+        return await response.json();
+    } catch (error) {
+        console.error('Error creating namespace:', error);
+        throw error;
+    }
+}
+
 app.post('/auth/user', verifyToken, async (req, res) => {
     try {
         const { name, email, provider_uid, photoURL } = req.body;
@@ -278,16 +303,23 @@ app.post('/auth/user', verifyToken, async (req, res) => {
 
         // First check if user exists by email
         let user = await User.findOne({ email });
+        let namespaceCreated = false;
 
         if (!user) {
             // If user doesn't exist, create new user with namespace
             const namespace = await generateUniqueNamespace();
+            
+            // Create namespace via API only if it's a new namespace
+            await createNamespaceViaAPI(namespace);
+            console.log('Created namespace via API:', namespace);
+            namespaceCreated = true;
+
             user = await User.create({
                 name,
                 email,
                 provider: 'google',
                 provider_uid,
-                photoURL: storedPhotoURL || photoURL, // Use stored URL if available
+                photoURL: storedPhotoURL || photoURL,
                 namespace,
                 created_at: jakartaTime,
                 updated_at: jakartaTime,
@@ -298,11 +330,17 @@ app.post('/auth/user', verifyToken, async (req, res) => {
             // If user exists but doesn't have namespace, generate one
             if (!user.namespace) {
                 const namespace = await generateUniqueNamespace();
+                
+                // Create namespace via API only if it's a new namespace
+                await createNamespaceViaAPI(namespace);
+                console.log('Created namespace via API:', namespace);
+                namespaceCreated = true;
+
                 user = await User.findOneAndUpdate(
                     { email },
                     {
                         provider_uid,
-                        photoURL: storedPhotoURL || photoURL, // Use stored URL if available
+                        photoURL: storedPhotoURL || photoURL,
                         name,
                         namespace,
                         last_login_at: jakartaTime,
@@ -317,7 +355,7 @@ app.post('/auth/user', verifyToken, async (req, res) => {
                     { email },
                     {
                         provider_uid,
-                        photoURL: storedPhotoURL || photoURL, // Use stored URL if available
+                        photoURL: storedPhotoURL || photoURL,
                         name,
                         last_login_at: jakartaTime,
                         updated_at: jakartaTime
@@ -328,7 +366,11 @@ app.post('/auth/user', verifyToken, async (req, res) => {
         }
 
         console.log('User updated/created:', user);
-        res.json({ success: true, user });
+        res.json({ 
+            success: true, 
+            user,
+            namespaceCreated // Add this flag to indicate if a new namespace was created
+        });
     } catch (error) {
         console.error('User update error:', error);
         res.status(500).json({ error: 'Failed to update user' });
