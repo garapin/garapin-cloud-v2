@@ -7,11 +7,12 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         try {
-            // Fetch applications with the token
-            const idToken = await user.getIdToken();
+            // Force token refresh before fetching applications
+            const idToken = await user.getIdToken(true);
             const response = await fetch('/my-apps/list', {
                 headers: {
-                    'Authorization': `Bearer ${idToken}`
+                    'Authorization': `Bearer ${idToken}`,
+                    'Cache-Control': 'no-cache'
                 }
             });
 

@@ -216,27 +216,94 @@ router.post('/install/:appId', async (req, res) => {
                     body: JSON.stringify(requestBody)
                 });
 
+                let responseData;
                 const responseText = await response.text();
-                console.log(`API Response for ${baseImageId}:`, responseText);
+                try {
+                    responseData = JSON.parse(responseText);
+                } catch (e) {
+                    console.warn('Response is not JSON:', responseText);
+                    responseData = responseText;
+                }
+
+                console.log(`API Response for ${baseImageId}:`, responseData);
 
                 if (!response.ok) {
                     throw new Error(`Deployment API error: ${response.status} - ${responseText}`);
                 }
 
+                // Ensure responseData is always an array
+                const resources = Array.isArray(responseData) ? responseData : [responseData];
+                console.log(`Processing ${resources.length} resources from API response`);
+
                 // Update deployment details for installations that use this base image
                 for (const installation of installationRecords) {
                     const app = await Application.findById(installation.application_id);
                     if (app && app.base_image.map(img => img.toString()).includes(baseImageId)) {
-                        installation.deployment_details.push({
-                            base_image: baseImageId,
-                            api_details: {
-                                url: apiUrl,
-                                request: requestBody,
-                                response: responseText
-                            },
-                            status: 'pending'
-                        });
-                        await installation.save();
+                        // Process each resource in the response
+                        for (const resource of resources) {
+                            // Create deployment detail object
+                            const deploymentDetail = {
+                                base_image: baseImageId,
+                                api_details: {
+                                    url: apiUrl,
+                                    request: requestBody,
+                                    response: resource  // Store individual resource response
+                                },
+                                status: 'pending',
+                                resource_type: resource.kind,
+                                resource: {
+                                    kind: resource.kind,
+                                    name: resource.metadata?.name,
+                                    namespace: resource.metadata?.namespace,
+                                    uid: resource.metadata?.uid,
+                                    creationTimestamp: resource.metadata?.creationTimestamp,
+                                }
+                            };
+
+                            // Add specific fields based on resource type
+                            switch (resource.kind) {
+                                case 'Service':
+                                    deploymentDetail.resource = {
+                                        ...deploymentDetail.resource,
+                                        clusterIP: resource.spec?.clusterIP,
+                                        type: resource.spec?.type,
+                                        ports: resource.spec?.ports,
+                                        selector: resource.spec?.selector
+                                    };
+                                    break;
+                                case 'Deployment':
+                                    deploymentDetail.resource = {
+                                        ...deploymentDetail.resource,
+                                        replicas: resource.spec?.replicas,
+                                        selector: resource.spec?.selector,
+                                        containers: resource.spec?.template?.spec?.containers
+                                    };
+                                    break;
+                                case 'PersistentVolumeClaim':
+                                    deploymentDetail.resource = {
+                                        ...deploymentDetail.resource,
+                                        storageClassName: resource.spec?.storageClassName,
+                                        accessModes: resource.spec?.accessModes,
+                                        storage: resource.spec?.resources?.requests?.storage
+                                    };
+                                    break;
+                            }
+
+                            // Store the complete raw response for this resource
+                            deploymentDetail.raw_response = resource;
+
+                            // Add this resource to deployment_details
+                            await InstalledApp.findByIdAndUpdate(
+                                installation._id,
+                                { 
+                                    $push: { deployment_details: deploymentDetail },
+                                    $set: { status: 'pending' }
+                                },
+                                { new: true }
+                            );
+                            
+                            console.log(`Added ${resource.kind} to deployment_details for installation ${installation._id}`);
+                        }
                     }
                 }
 
@@ -247,13 +314,21 @@ router.post('/install/:appId', async (req, res) => {
                 for (const installation of installationRecords) {
                     const app = await Application.findById(installation.application_id);
                     if (app && app.base_image.map(img => img.toString()).includes(baseImageId)) {
-                        installation.deployment_details.push({
+                        const failedDeployment = {
                             base_image: baseImageId,
                             error: error.message,
-                            status: 'failed'
-                        });
-                        installation.status = 'failed';
-                        await installation.save();
+                            status: 'failed',
+                            timestamp: new Date()
+                        };
+                        
+                        await InstalledApp.findByIdAndUpdate(
+                            installation._id,
+                            { 
+                                $push: { deployment_details: failedDeployment },
+                                $set: { status: 'failed' }
+                            },
+                            { new: true }
+                        );
                     }
                 }
                 
@@ -264,15 +339,23 @@ router.post('/install/:appId', async (req, res) => {
             }
         }
 
+        // Fetch the updated installation records
+        const updatedInstallations = await Promise.all(
+            installationRecords.map(record => 
+                InstalledApp.findById(record._id)
+            )
+        );
+
         console.log('All deployments completed successfully');
         
         res.json({ 
             success: true,
             message: 'Installation initiated successfully',
             redirect: '/my-apps/installed',
-            installations: installationRecords.map(record => ({
+            installations: updatedInstallations.map(record => ({
                 id: record._id,
-                application_id: record.application_id
+                application_id: record.application_id,
+                deployment_details: record.deployment_details
             }))
         });
 
