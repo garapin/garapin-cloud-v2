@@ -4,8 +4,8 @@ const userSchema = new mongoose.Schema({
     provider: String,
     provider_uid: { type: String, unique: true },
     email: String,
-    display_name: String,
-    photo_url: String,
+    name: String,
+    photoURL: String,
     namespace: { 
         type: String, 
         unique: true,
@@ -18,6 +18,7 @@ const userSchema = new mongoose.Schema({
             message: props => `${props.value} is not a valid namespace! Must be 8 characters, start with a letter, and contain only lowercase letters and numbers.`
         }
     },
+    last_login_at: { type: Date, default: Date.now },
     created_at: { type: Date, default: Date.now },
     updated_at: { type: Date, default: Date.now }
 });
