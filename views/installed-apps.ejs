@@ -32,13 +32,16 @@
 
                 <!-- Applications Grid -->
                 <div class="row g-3">
-                    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 row-cols-xl-4 g-4">
+                    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 row-cols-xl-4 g-4" id="appsContainer">
                         <% if (applications && applications.length > 0) { %>
                             <% applications.forEach(installed => { %>
                                 <% const app = installed.application_id %>
-                                <% if (app) { %>
+                                <% if (app && app._id) { %>
                                     <div class="col">
-                                        <div class="card h-100" data-app-id="<%= app._id %>" data-installed-id="<%= installed._id %>">
+                                        <div class="card h-100" 
+                                             data-app-id="<%= app._id %>" 
+                                             data-installed-id="<%= installed._id %>"
+                                             data-status="<%= installed.status %>">
                                             <% if (app.logo && app.logo.url) { %>
                                                 <a href="/store/app/<%= app._id %>" class="text-decoration-none">
                                                     <img src="<%= app.logo.url %>" class="card-img-top p-3" alt="<%= app.title %>" style="height: 200px; object-fit: contain;">
@@ -66,60 +69,58 @@
                                                     <small class="text-muted">(<%= app.installed_count || 0 %> installs)</small>
                                                 </div>
                                                 <p class="card-text text-muted">
-                                                    <%- cleanAndTruncateDescription(app.description) %>
+                                                    <%- cleanAndTruncateDescription(app.description || 'No description available') %>
                                                 </p>
                                                 <div class="d-flex justify-content-between align-items-center mt-3">
                                                     <div class="text-muted small status-container">
                                                         <% 
                                                         let statusClass;
                                                         let displayStatus;
-                                                        switch(installed.status.toLowerCase()) {
-                                                            case 'init':
-                                                            case 'pending':
-                                                                statusClass = 'badge bg-warning text-dark';
-                                                                displayStatus = 'In Progress..';
-                                                                break;
-                                                            case 'done':
-                                                            case 'completed':
-                                                                statusClass = 'badge bg-success text-white';
-                                                                displayStatus = 'Running';
-                                                                break;
-                                                            case 'failed':
-                                                                statusClass = 'badge bg-danger text-white';
-                                                                displayStatus = 'Failed';
-                                                                break;
-                                                            default:
-                                                                statusClass = 'badge bg-secondary text-white';
-                                                                displayStatus = installed.status.charAt(0).toUpperCase() + installed.status.slice(1);
+                                                        const status = installed.status ? installed.status.toUpperCase() : '';
+                                                        
+                                                        if (status === 'PENDING' || status === 'INIT') {
+                                                            statusClass = 'badge bg-warning text-dark';
+                                                            displayStatus = 'In Progress..';
+                                                        } else if (status === 'COMPLETED' || status === 'DONE') {
+                                                            statusClass = 'badge bg-success text-white';
+                                                            displayStatus = 'Running';
+                                                        } else {
+                                                            statusClass = 'badge bg-secondary text-white';
+                                                            displayStatus = status;
                                                         }
                                                         %>
                                                         <span class="<%= statusClass %> app-status" style="border-radius: 4px; padding: 4px 8px;">
                                                             <%= displayStatus %>
-                                                        </span>
+                                                        </span><br>
+                                                        <%= new Date(installed.installed_at).toLocaleString('en-GB', { 
+                                                            day: '2-digit',
+                                                            month: 'short',
+                                                            year: '2-digit',
+                                                            hour: '2-digit',
+                                                            minute: '2-digit',
+                                                            hour12: false
+                                                        }).replace(/\//g, '-').replace(',', '').replace(' ', '-') %>
                                                     </div>
-                                                    <%
-                                                    let ingressUrl = '';
-                                                    if (installed.deployment_details) {
-                                                        const details = Array.isArray(installed.deployment_details) ? installed.deployment_details : [installed.deployment_details];
-                                                        const ingress = details.find(detail => 
-                                                            detail?.resource?.kind === 'Ingress' && 
-                                                            detail?.raw_response?.spec?.rules?.[0]?.host
-                                                        );
-                                                        if (ingress) {
-                                                            ingressUrl = `https://${ingress.raw_response.spec.rules[0].host}`;
-                                                        }
-                                                    }
-                                                    const status = installed.status.toLowerCase();
-                                                    const isInProgress = status === 'init' || status === 'pending';
-                                                    const isRunning = status === 'done' || status === 'completed';
-                                                    %>
                                                     <div class="open-app-container">
+                                                        <%
+                                                        let ingressUrl = '';
+                                                        if (installed.deployment_details) {
+                                                            const details = Array.isArray(installed.deployment_details) ? installed.deployment_details : [installed.deployment_details];
+                                                            const ingress = details.find(detail => 
+                                                                detail?.resource?.kind === 'Ingress' && 
+                                                                detail?.raw_response?.spec?.rules?.[0]?.host
+                                                            );
+                                                            if (ingress) {
+                                                                ingressUrl = `https://${ingress.raw_response.spec.rules[0].host}`;
+                                                            }
+                                                        }
+                                                        %>
                                                         <% if (ingressUrl) { %>
-                                                            <% if (isRunning) { %>
+                                                            <% if (status === 'COMPLETED' || status === 'DONE') { %>
                                                                 <a href="<%= ingressUrl %>" target="_blank" class="btn btn-primary btn-sm open-app-btn">
                                                                     <i class="bi bi-box-arrow-up-right"></i> Open App
                                                                 </a>
-                                                            <% } else if (isInProgress) { %>
+                                                            <% } else if (status === 'PENDING' || status === 'INIT') { %>
                                                                 <button class="btn btn-primary btn-sm open-app-btn" disabled>
                                                                     <i class="bi bi-box-arrow-up-right"></i> Open App
                                                                 </button>
@@ -159,124 +160,207 @@
 
     <!-- Add auto-refresh functionality -->
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            // Store refresh intervals for each app
-            const refreshIntervals = new Map();
+        // Store refresh intervals globally
+        const refreshIntervals = new Map();
 
-            // Function to check app status
-            async function checkAppStatus(installedId, appElement) {
-                try {
-                    // Get the current Firebase token
-                    const user = firebase.auth().currentUser;
-                    if (!user) {
-                        console.log('User not authenticated');
-                        return;
+        // Initialize Firebase first
+        document.addEventListener('DOMContentLoaded', () => {
+            const firebaseConfig = JSON.parse(document.querySelector('[data-firebase-config]').dataset.firebaseConfig);
+            firebase.initializeApp(firebaseConfig);
+        });
+
+        // Function to wait for Firebase and Auth
+        function waitForFirebaseAndAuth() {
+            return new Promise((resolve) => {
+                const checkFirebase = () => {
+                    if (typeof firebase !== 'undefined' && firebase.auth && firebase.auth()) {
+                        // Check if user is authenticated
+                        firebase.auth().onAuthStateChanged((user) => {
+                            if (user) {
+                                resolve(user);
+                            } else {
+                                // If no user, keep checking
+                                setTimeout(checkFirebase, 100);
+                            }
+                        });
+                    } else {
+                        setTimeout(checkFirebase, 100);
                     }
-                    const token = await user.getIdToken();
+                };
+                checkFirebase();
+            });
+        }
 
-                    // Make API call to check status
-                    const response = await fetch(`/api/applications/status/${installedId}`, {
-                        headers: {
-                            'Authorization': `Bearer ${token}`
-                        }
-                    });
+        // Function to check app status
+        async function checkAppStatus(installedId, appElement) {
+            try {
+                // Get Firebase token
+                const user = firebase.auth().currentUser;
+                if (!user) {
+                    return;
+                }
+
+                const token = await user.getIdToken();
+                
+                // Make API call to check status
+                const response = await fetch(`/api/applications/status/${installedId}`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to fetch status');
+                }
+
+                const data = await response.json();
+                
+                // Update status badge
+                const statusContainer = appElement.querySelector('.status-container .app-status');
+                const openAppContainer = appElement.querySelector('.open-app-container');
+                
+                if (!statusContainer || !openAppContainer) {
+                    return;
+                }
+
+                let statusClass = '';
+                let displayStatus = '';
+                let openAppButton = '';
+                
+                // Extract ingress URL from deployment details
+                let ingressUrl = '';
+                if (data.deployment_details) {
+                    const details = Array.isArray(data.deployment_details) ? data.deployment_details : [data.deployment_details];
+                    const ingress = details.find(detail => 
+                        detail?.resource?.kind === 'Ingress' && 
+                        detail?.raw_response?.spec?.rules?.[0]?.host
+                    );
                     
-                    if (!response.ok) {
-                        throw new Error('Failed to fetch status');
+                    if (ingress) {
+                        ingressUrl = `https://${ingress.raw_response.spec.rules[0].host}`;
+                    }
+                }
+
+                const currentStatus = (data.status || '').toUpperCase();
+
+                // Keep monitoring if status is pending
+                if (currentStatus === 'PENDING' || currentStatus === 'INIT') {
+                    statusClass = 'badge bg-warning text-dark';
+                    displayStatus = 'In Progress..';
+                    if (ingressUrl) {
+                        openAppButton = `
+                            <button class="btn btn-primary btn-sm open-app-btn" disabled>
+                                <i class="bi bi-box-arrow-up-right"></i> Open App
+                            </button>`;
                     }
 
-                    const data = await response.json();
-                    
-                    // Update status badge
-                    const statusContainer = appElement.querySelector('.app-status');
-                    const openAppContainer = appElement.querySelector('.open-app-container');
-                    
-                    let statusClass = '';
-                    let displayStatus = '';
-                    let openAppButton = '';
-                    const ingressUrl = data.ingress_url || '';
-
-                    // Update status display
-                    switch(data.status.toLowerCase()) {
-                        case 'init':
-                        case 'pending':
-                            statusClass = 'badge bg-warning text-dark';
-                            displayStatus = 'In Progress..';
-                            if (ingressUrl) {
-                                openAppButton = `
-                                    <button class="btn btn-primary btn-sm open-app-btn" disabled>
-                                        <i class="bi bi-box-arrow-up-right"></i> Open App
-                                    </button>`;
-                            }
-                            break;
-                        case 'done':
-                        case 'completed':
-                            statusClass = 'badge bg-success text-white';
-                            displayStatus = 'Running';
-                            if (ingressUrl) {
-                                openAppButton = `
-                                    <a href="${ingressUrl}" target="_blank" class="btn btn-primary btn-sm open-app-btn">
-                                        <i class="bi bi-box-arrow-up-right"></i> Open App
-                                    </a>`;
-                            }
-                            // Clear interval when app is running
-                            if (refreshIntervals.has(installedId)) {
-                                clearInterval(refreshIntervals.get(installedId));
-                                refreshIntervals.delete(installedId);
-                            }
-                            break;
-                        case 'failed':
-                            statusClass = 'badge bg-danger text-white';
-                            displayStatus = 'Failed';
-                            // Clear interval when app has failed
-                            if (refreshIntervals.has(installedId)) {
-                                clearInterval(refreshIntervals.get(installedId));
-                                refreshIntervals.delete(installedId);
-                            }
-                            break;
-                        default:
-                            statusClass = 'badge bg-secondary text-white';
-                            displayStatus = data.status.charAt(0).toUpperCase() + data.status.slice(1);
+                    // Ensure we have an interval for pending status
+                    if (!refreshIntervals.has(installedId)) {
+                        const intervalId = setInterval(() => checkAppStatus(installedId, appElement), 5000);
+                        refreshIntervals.set(installedId, intervalId);
+                    }
+                } else if (currentStatus === 'COMPLETED' || currentStatus === 'DONE') {
+                    statusClass = 'badge bg-success text-white';
+                    displayStatus = 'Running';
+                    if (ingressUrl) {
+                        openAppButton = `
+                            <a href="${ingressUrl}" target="_blank" class="btn btn-primary btn-sm open-app-btn">
+                                <i class="bi bi-box-arrow-up-right"></i> Open App
+                            </a>`;
                     }
 
+                    // Update status badge immediately
                     statusContainer.className = `${statusClass} app-status`;
                     statusContainer.style.borderRadius = '4px';
                     statusContainer.style.padding = '4px 8px';
-                    statusContainer.textContent = displayStatus;
+                    statusContainer.innerHTML = displayStatus;
 
+                    // Update button immediately
                     if (openAppButton) {
                         openAppContainer.innerHTML = openAppButton;
                     }
 
-                } catch (error) {
-                    console.error('Error checking app status:', error);
-                }
-            }
+                    // Update data-status attribute
+                    appElement.dataset.status = currentStatus;
 
-            // Initialize status checking for all apps
-            document.querySelectorAll('.card[data-installed-id]').forEach(appElement => {
-                const installedId = appElement.dataset.installedId;
-                const status = appElement.querySelector('.app-status').textContent.trim().toLowerCase();
+                    // Stop monitoring since status is completed
+                    const intervalId = refreshIntervals.get(installedId);
+                    if (intervalId) {
+                        clearInterval(intervalId);
+                        refreshIntervals.delete(installedId);
+                    }
+                } else {
+                    statusClass = 'badge bg-secondary text-white';
+                    displayStatus = currentStatus;
+
+                    // Stop monitoring for any other status
+                    const intervalId = refreshIntervals.get(installedId);
+                    if (intervalId) {
+                        clearInterval(intervalId);
+                        refreshIntervals.delete(installedId);
+                    }
+                }
                 
-                // Only set up refresh for apps that are in progress
-                if (status === 'in progress..' || status === 'pending') {
-                    // Initial check
-                    checkAppStatus(installedId, appElement);
-                    
-                    // Set up interval (every 10 seconds) and store it
-                    const intervalId = setInterval(() => {
-                        checkAppStatus(installedId, appElement);
-                    }, 10000); // 10 seconds
-                    
-                    refreshIntervals.set(installedId, intervalId);
-                }
-            });
+                // Always update the UI elements
+                statusContainer.className = `${statusClass} app-status`;
+                statusContainer.style.borderRadius = '4px';
+                statusContainer.style.padding = '4px 8px';
+                statusContainer.innerHTML = displayStatus;
 
-            // Clean up intervals when leaving the page
-            window.addEventListener('beforeunload', () => {
-                refreshIntervals.forEach(intervalId => clearInterval(intervalId));
-                refreshIntervals.clear();
-            });
+                if (openAppButton) {
+                    openAppContainer.innerHTML = openAppButton;
+                }
+
+                // Update data-status attribute
+                appElement.dataset.status = currentStatus;
+
+            } catch (error) {
+                // Silent error handling
+            }
+        }
+
+        // Initialize monitoring
+        async function initializeMonitoring() {
+            try {
+                const user = await waitForFirebaseAndAuth();
+
+                // Get all app cards
+                const appCards = document.querySelectorAll('#appsContainer .card[data-installed-id]');
+                
+                // Filter for pending apps and start monitoring
+                appCards.forEach(appElement => {
+                    const status = (appElement.dataset.status || '').toUpperCase();
+                    const installedId = appElement.dataset.installedId;
+                    
+                    if (status === 'PENDING' || status === 'INIT') {
+                        // Initial check
+                        checkAppStatus(installedId, appElement);
+                        
+                        // Set up interval
+                        const intervalId = setInterval(() => checkAppStatus(installedId, appElement), 5000);
+                        refreshIntervals.set(installedId, intervalId);
+                    }
+                });
+
+                // Clean up intervals when leaving the page
+                window.addEventListener('beforeunload', () => {
+                    refreshIntervals.forEach(intervalId => clearInterval(intervalId));
+                    refreshIntervals.clear();
+                });
+
+            } catch (error) {
+                // Silent error handling
+            }
+        }
+
+        // Start monitoring after Firebase is initialized
+        document.addEventListener('DOMContentLoaded', () => {
+            // Initialize Firebase first
+            const firebaseConfig = JSON.parse(document.querySelector('[data-firebase-config]').dataset.firebaseConfig);
+            firebase.initializeApp(firebaseConfig);
+            
+            // Then start monitoring after a delay
+            setTimeout(initializeMonitoring, 2000);
         });
     </script>
 </body>

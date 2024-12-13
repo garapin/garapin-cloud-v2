@@ -705,11 +705,16 @@ app.get('/my-apps/installed', async (req, res) => {
 
         // Get token from header
         const authHeader = req.headers.authorization;
-        console.log('\n=== Fetching Installed Apps ===');
-        console.log('Auth header present:', !!authHeader);
 
-        if (!authHeader || !authHeader.startsWith('Bearer ')) {
-            console.log('No valid auth token found');
+        // Get user ID from Firebase token in cookie or header
+        let userId;
+        if (authHeader && authHeader.startsWith('Bearer ')) {
+            const token = authHeader.split('Bearer ')[1];
+            const decodedToken = await admin.auth().verifyIdToken(token);
+            userId = decodedToken.uid;
+        }
+
+        if (!userId) {
             return res.render('installed-apps', { 
                 firebaseConfig,
                 applications: [],
@@ -719,37 +724,17 @@ app.get('/my-apps/installed', async (req, res) => {
                 cleanAndTruncateDescription
             });
         }
-
-        const token = authHeader.split('Bearer ')[1];
-        const decodedToken = await admin.auth().verifyIdToken(token);
-        
-        // Get MongoDB user using Firebase UID
-        const user = await User.findOne({ provider_uid: decodedToken.uid });
-        if (!user) {
-            console.log('User not found');
-            return res.render('installed-apps', { 
-                firebaseConfig,
-                applications: [],
-                user: null,
-                pageTitle: 'Installed Apps',
-                currentPage: 'installed-apps',
-                cleanAndTruncateDescription
-            });
-        }
-
-        console.log('Found user:', user._id);
-        console.log('User provider_uid:', user.provider_uid);
 
         // Get installed apps with populated application data
         const installedApps = await InstalledApp.find({ 
-            user_id: user.provider_uid  // Use Firebase UID
+            user_id: userId
         }).populate({
             path: 'application_id',
-            model: 'Application',
-            select: 'title description logo rating installed_count app_url base_image'
+            model: 'Application'
         }).sort({ installed_at: -1 });
 
-        console.log('Found installed apps:', installedApps.length);
+        // Get user data
+        const user = await User.findOne({ provider_uid: userId });
 
         res.render('installed-apps', {
             firebaseConfig,
@@ -761,7 +746,6 @@ app.get('/my-apps/installed', async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Error fetching installed apps:', error);
         res.status(500).send('Error loading installed apps');
     }
 });
@@ -952,23 +936,86 @@ app.post('/api/applications/install', verifyToken, async (req, res) => {
         }
         console.log('Found application:', { id: application._id, title: application.title });
 
-        // Create new installation record
+        // Check if user has already installed this application
+        const existingInstallation = await InstalledApp.findOne({
+            application_id: application._id,
+            user_id: userId,
+            status: { $in: ['init', 'pending', 'completed', 'done'] }
+        });
+
+        if (existingInstallation) {
+            return res.status(400).json({
+                success: false,
+                message: 'Application is already installed or installation is in progress'
+            });
+        }
+
+        // Create new installation record with initial status
         const installation = new InstalledApp({
             application_id: application._id,
             user_id: userId,
-            installed_date: new Date()
+            status: 'init',
+            installed_at: new Date(),
+            deployment_details: null,
+            deployment_response: null
         });
 
-        // Debug: Show installation object before saving
-        console.log('\nInstallation to save:', installation.toObject());
-
-        // Save the installation
+        // Save the initial installation record
         const savedInstallation = await installation.save();
-        console.log('\nSaved installation:', savedInstallation.toObject());
+        console.log('\nInitial installation record saved:', savedInstallation.toObject());
 
-        // Verify the installation was saved
-        const verifyInstall = await InstalledApp.findById(savedInstallation._id);
-        console.log('\nVerified installation exists:', verifyInstall ? 'Yes' : 'No');
+        // Start the deployment process asynchronously
+        try {
+            // Prepare deployment data
+            const deploymentData = {
+                namespace: req.user.namespace,
+                application_id: application._id.toString(),
+                installation_id: savedInstallation._id.toString()
+            };
+
+            // Call deployment API
+            const deploymentResponse = await fetch(process.env.DEPLOYMENT_API_URL, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    [process.env.DEPLOYMENT_API_USER]: process.env.DEPLOYMENT_API_KEY
+                },
+                body: JSON.stringify(deploymentData)
+            });
+
+            if (!deploymentResponse.ok) {
+                throw new Error(`Deployment API responded with status: ${deploymentResponse.status}`);
+            }
+
+            const deploymentResult = await deploymentResponse.json();
+
+            // Update installation with deployment details
+            savedInstallation.status = 'pending';
+            savedInstallation.deployment_details = deploymentResult;
+            await savedInstallation.save();
+
+            console.log('\nDeployment initiated successfully:', {
+                installation_id: savedInstallation._id,
+                status: savedInstallation.status
+            });
+
+        } catch (deployError) {
+            console.error('Deployment error:', deployError);
+            
+            // Update installation status to failed
+            savedInstallation.status = 'failed';
+            savedInstallation.deployment_response = {
+                error: deployError.message,
+                timestamp: new Date()
+            };
+            await savedInstallation.save();
+
+            return res.status(500).json({
+                success: false,
+                message: 'Failed to deploy application',
+                error: deployError.message
+            });
+        }
 
         // Update application's installed count
         await Application.findByIdAndUpdate(
@@ -976,10 +1023,15 @@ app.post('/api/applications/install', verifyToken, async (req, res) => {
             { $inc: { installed_count: 1 } }
         );
 
+        // Return success response with installation details
         res.json({ 
             success: true, 
-            message: 'Application installed successfully',
-            installation: savedInstallation
+            message: 'Application installation initiated successfully',
+            installation: {
+                id: savedInstallation._id,
+                status: savedInstallation.status,
+                installed_at: savedInstallation.installed_at
+            }
         });
 
     } catch (error) {
@@ -989,6 +1041,52 @@ app.post('/api/applications/install', verifyToken, async (req, res) => {
             message: 'Failed to install application',
             error: error.message
         });
+    }
+});
+
+// Application status endpoint
+app.get('/api/applications/status/:installedId', async (req, res) => {
+    try {
+        // Get token from header
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({ error: 'No valid auth token provided' });
+        }
+
+        // Verify token and get user ID
+        const token = authHeader.split('Bearer ')[1];
+        const decodedToken = await admin.auth().verifyIdToken(token);
+        const userId = decodedToken.uid;
+
+        // Find the installed app
+        const installedApp = await InstalledApp.findOne({
+            _id: req.params.installedId,
+            user_id: userId
+        });
+
+        if (!installedApp) {
+            return res.status(404).json({ error: 'Installed application not found' });
+        }
+
+        // Format the installed_at date
+        const formattedDate = new Date(installedApp.installed_at).toLocaleString('en-GB', {
+            day: '2-digit',
+            month: 'short',
+            year: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: false
+        }).replace(/\//g, '-').replace(',', '').replace(' ', '-');
+
+        // Return status and deployment details
+        res.json({
+            status: installedApp.status,
+            installed_at: formattedDate,
+            deployment_details: installedApp.deployment_details
+        });
+
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to fetch application status' });
     }
 });
 
