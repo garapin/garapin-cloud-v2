@@ -22,13 +22,6 @@ A Node.js admin panel with Google OAuth authentication.
 npm install
 ```
 
-3. Configure environment variables:
-   - Copy `.env.example` to `.env`
-   - Update the following variables in `.env`:
-     - `GOOGLE_CLIENT_ID`: Your Google OAuth client ID
-     - `GOOGLE_CLIENT_SECRET`: Your Google OAuth client secret
-     - `SESSION_SECRET`: A random string for session encryption
-
 4. Set up Google OAuth:
    - Go to [Google Cloud Console](https://console.cloud.google.com)
    - Create a new project or select an existing one
