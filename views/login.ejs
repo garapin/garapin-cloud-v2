@@ -119,8 +119,24 @@
             alert('Failed to initialize application. Please try refreshing the page.');
         }
 
+        // Track if we've already handled auth for this session
+        let authHandled = false;
+
+        // Function to update UI with user data
+        function updateUserUI(userData) {
+            const userPhotoContainer = document.getElementById('userPhotoContainer');
+            if (userPhotoContainer && userData.photoURL) {
+                userPhotoContainer.innerHTML = `<img src="${userData.photoURL}" alt="Profile" class="rounded-circle" style="width: 24px; height: 24px; object-fit: cover;">`;
+            }
+        }
+
         // Function to handle successful authentication
         async function handleSuccessfulAuth(user) {
+            if (authHandled) {
+                console.log('Auth already handled, skipping...');
+                return;
+            }
+
             try {
                 console.log('Authentication successful, getting token...');
                 const token = await user.getIdToken(true);
@@ -141,7 +157,18 @@
                 });
 
                 if (response.ok) {
-                    console.log('Server authentication successful, redirecting...');
+                    const data = await response.json();
+                    console.log('Server authentication successful:', data);
+                    
+                    // Update UI with user data
+                    updateUserUI(data.user);
+                    
+                    // Store user data
+                    localStorage.setItem('userName', data.user.name);
+                    localStorage.setItem('userEmail', data.user.email);
+                    localStorage.setItem('userPhotoURL', data.user.photoURL);
+                    
+                    authHandled = true;
                     window.location.href = '/dashboard';
                 } else {
                     console.error('Server authentication failed:', await response.text());
@@ -157,11 +184,9 @@
         firebase.auth()
             .getRedirectResult()
             .then((result) => {
-                if (result.user) {
+                if (result.user && !authHandled) {
                     console.log('Redirect sign-in successful, handling auth...');
                     handleSuccessfulAuth(result.user);
-                } else {
-                    console.log('No redirect result');
                 }
             })
             .catch((error) => {
@@ -173,14 +198,16 @@
 
         // Check if already logged in
         firebase.auth().onAuthStateChanged(async (user) => {
-            console.log('Auth state changed:', user ? 'User logged in' : 'No user');
-            if (user) {
-                console.log('User authenticated:', {
+            if (user && !authHandled) {
+                console.log('Auth state changed - user logged in:', {
                     displayName: user.displayName,
                     email: user.email,
                     uid: user.uid
                 });
                 await handleSuccessfulAuth(user);
+            } else if (!user) {
+                console.log('Auth state changed - no user');
+                authHandled = false; // Reset for next login attempt
             }
         });
 
@@ -205,7 +232,9 @@
                     console.log('Attempting popup sign-in...');
                     const result = await firebase.auth().signInWithPopup(provider);
                     console.log('Popup sign-in successful');
-                    await handleSuccessfulAuth(result.user);
+                    if (!authHandled) {
+                        await handleSuccessfulAuth(result.user);
+                    }
                 } catch (popupError) {
                     console.log('Popup failed, trying redirect...', popupError);
                     await firebase.auth().signInWithRedirect(provider);

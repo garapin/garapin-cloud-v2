@@ -12,15 +12,6 @@ document.addEventListener('DOMContentLoaded', function() {
         return;
     }
 
-    // Handle auth state changes
-    firebase.auth().onAuthStateChanged(async (user) => {
-        if (user) {
-            try {
-                await window.handleAuthStateChange(user);
-                // Additional dashboard-specific logic here if needed
-            } catch (error) {
-                console.error('Dashboard auth error:', error);
-            }
-        }
-    });
+    // Dashboard-specific logic here
+    // Note: Auth state changes are now handled by headerController.js
 }); 

@@ -38,7 +38,7 @@ app.use((req, res, next) => {
         "https://www.googleapis.com https://cdn.jsdelivr.net; " +
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; " +
         "font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net; " +
-        "img-src 'self' data: https: blob:; " +
+        "img-src 'self' data: https: blob: https://lh3.googleusercontent.com https://*.googleusercontent.com; " +
         "connect-src 'self' https://*.firebaseio.com https://www.googleapis.com " +
         "https://securetoken.googleapis.com https://identitytoolkit.googleapis.com " +
         "wss://*.firebaseio.com https://cdn.jsdelivr.net; " +
@@ -46,6 +46,11 @@ app.use((req, res, next) => {
         "https://*.firebaseapp.com https://*.firebase.com https://accounts.google.com; " +
         "object-src 'none';"
     );
+
+    // Set cache control for images
+    if (req.url.match(/\.(jpg|jpeg|png|gif|ico)$/)) {
+        res.setHeader('Cache-Control', 'public, max-age=86400'); // 24 hours
+    }
 
     // Set permissive CORS headers
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -344,132 +349,107 @@ async function createNamespaceViaAPI(namespace) {
     }
 }
 
+// Add at the top of the file with other requires
+const lockMap = new Map();
+
+// Add this function before the route handlers
+async function withLock(key, callback) {
+    if (lockMap.get(key)) {
+        console.log('Operation in progress for key:', key);
+        return;
+    }
+    
+    try {
+        lockMap.set(key, true);
+        await callback();
+    } finally {
+        lockMap.delete(key);
+    }
+}
+
 app.post('/auth/user', verifyToken, async (req, res) => {
     try {
         const { name, email, provider_uid, photoURL } = req.body;
-        console.log('Received user data:', { name, email, provider_uid, photoURL });
+        console.log('Received auth data:', { name, email, provider_uid, photoURL });
 
-        // Upload profile picture to Firebase Storage
-        const storedPhotoURL = await uploadProfilePictureToStorage(photoURL, provider_uid);
-        
-        const jakartaTime = moment().tz('Asia/Jakarta').toDate();
+        // Use the lock to prevent duplicate operations
+        await withLock(provider_uid, async () => {
+            // First check if user exists by provider_uid
+            let user = await User.findOne({ provider_uid });
+            let namespaceCreated = false;
 
-        // First check if user exists by provider_uid (more reliable than email)
-        let user = await User.findOne({ provider_uid });
-        let namespaceCreated = false;
-        let retryCount = 0;
-        const maxRetries = 3;
-
-        if (!user) {
-            console.log('User not found, creating new user...');
-            // If user doesn't exist, create new user with namespace
-            const namespace = await generateUniqueNamespace();
-            
-            // Try to create namespace with retries
-            while (retryCount < maxRetries) {
-                try {
-                    await createNamespaceViaAPI(namespace);
-                    console.log('Created namespace via API:', namespace);
-                    namespaceCreated = true;
-                    break;
-                } catch (error) {
-                    console.error('Namespace creation attempt failed:', error);
-                    retryCount++;
-                    if (retryCount === maxRetries) {
-                        console.error('Failed to create namespace after retries:', error);
-                        throw error;
+            if (!user) {
+                console.log('Creating new user...');
+                
+                // Generate namespace only if needed
+                const namespace = await generateUniqueNamespace();
+                
+                // Check if namespace already exists
+                const existingNamespace = await User.findOne({ namespace });
+                if (!existingNamespace) {
+                    try {
+                        await createNamespaceViaAPI(namespace);
+                        namespaceCreated = true;
+                        console.log('Created namespace:', namespace);
+                    } catch (error) {
+                        console.error('Failed to create namespace:', error);
                     }
-                    await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
                 }
-            }
 
-            try {
+                // Create new user with all fields
                 user = await User.create({
-                    name,
+                    name: name || email.split('@')[0],
                     email,
                     provider: 'google',
                     provider_uid,
-                    photoURL: storedPhotoURL || photoURL,
+                    photoURL,
                     namespace,
-                    created_at: jakartaTime,
-                    updated_at: jakartaTime,
-                    last_login_at: jakartaTime
+                    created_at: new Date(),
+                    updated_at: new Date(),
+                    last_login_at: new Date()
                 });
-                console.log('Created new user:', user);
-            } catch (dbError) {
-                console.error('Database error creating user:', dbError);
-                // If there's a duplicate key error, try to find the user again
-                if (dbError.code === 11000) {
-                    user = await User.findOne({ provider_uid });
-                    if (!user) {
-                        throw dbError;
-                    }
-                } else {
-                    throw dbError;
-                }
-            }
-
-            console.log('Created new user with namespace:', namespace);
-        } else {
-            // If user exists but doesn't have namespace, generate one
-            if (!user.namespace) {
-                const namespace = await generateUniqueNamespace();
-                
-                // Try to create namespace with retries
-                while (retryCount < maxRetries) {
-                    try {
-                        await createNamespaceViaAPI(namespace);
-                        console.log('Created namespace via API:', namespace);
-                        namespaceCreated = true;
-                        break;
-                    } catch (error) {
-                        retryCount++;
-                        if (retryCount === maxRetries) {
-                            console.error('Failed to create namespace after retries:', error);
-                            throw error;
-                        }
-                        await new Promise(resolve => setTimeout(resolve, 1000 * retryCount)); // Exponential backoff
-                    }
-                }
-
-                user = await User.findOneAndUpdate(
-                    { email },
-                    {
-                        provider_uid,
-                        photoURL: storedPhotoURL || photoURL,
-                        name,
-                        namespace,
-                        last_login_at: jakartaTime,
-                        updated_at: jakartaTime
-                    },
-                    { new: true }
-                );
-                console.log('Added namespace to existing user:', namespace);
+                console.log('Created new user:', { id: user._id, email: user.email, name: user.name });
             } else {
-                // Just update other fields if namespace exists
+                // Update existing user with all fields
+                const updates = {
+                    email,
+                    last_login_at: new Date(),
+                    updated_at: new Date()
+                };
+
+                // Only update name and photo if provided
+                if (name) updates.name = name;
+                if (photoURL) updates.photoURL = photoURL;
+
                 user = await User.findOneAndUpdate(
-                    { email },
-                    {
-                        provider_uid,
-                        photoURL: storedPhotoURL || photoURL,
-                        name,
-                        last_login_at: jakartaTime,
-                        updated_at: jakartaTime
-                    },
+                    { provider_uid },
+                    { $set: updates },
                     { new: true }
                 );
+                console.log('Updated user:', { id: user._id, email: user.email, name: user.name });
             }
-        }
 
-        console.log('User updated/created:', user);
-        res.json({ 
-            success: true, 
-            user,
-            namespaceCreated // Add this flag to indicate if a new namespace was created
+            // Return complete user object
+            res.json({ 
+                success: true, 
+                user: {
+                    _id: user._id,
+                    name: user.name,
+                    email: user.email,
+                    photoURL: user.photoURL,
+                    provider: user.provider,
+                    provider_uid: user.provider_uid,
+                    namespace: user.namespace,
+                    last_login_at: user.last_login_at,
+                    created_at: user.created_at,
+                    updated_at: user.updated_at
+                },
+                namespaceCreated
+            });
         });
     } catch (error) {
         console.error('User update error:', error);
-        res.status(500).json({ error: 'Failed to update user' });
+        res.status(500).json({ error: 'Failed to update user', details: error.message });
     }
 });
 
