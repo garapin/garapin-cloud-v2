@@ -22,6 +22,22 @@ const InstalledApp = require('./models/InstalledApp');
 
 const app = express();
 
+// Add CSP headers middleware
+app.use((req, res, next) => {
+    res.setHeader(
+        'Content-Security-Policy',
+        "default-src 'self'; " +
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.gstatic.com https://apis.google.com https://*.firebaseio.com https://www.googleapis.com; " +
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; " +
+        "font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net; " +
+        "img-src 'self' data: https: blob:; " +
+        "connect-src 'self' https://*.firebaseio.com https://www.googleapis.com https://securetoken.googleapis.com https://identitytoolkit.googleapis.com; " +
+        "frame-src 'self' https://console.garapin.cloud https://*.firebaseio.com https://*.firebase.com https://accounts.google.com; " +
+        "object-src 'none';"
+    );
+    next();
+});
+
 // Initialize Firebase Admin SDK
 admin.initializeApp({
     credential: admin.credential.cert({
