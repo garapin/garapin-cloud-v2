@@ -105,9 +105,25 @@
                                                             hour12: false
                                                         }).replace(/\//g, '-').replace(',', '').replace(' ', '-').replace(/(\w{3})\s*(\d{2})/, '$1-$2') %>
                                                     </div>
-                                                    <a href="<%= app.app_url || '#' %>" target="_blank" class="btn btn-primary btn-sm <%= !app.app_url ? 'disabled' : '' %>">
-                                                        <i class="bi bi-box-arrow-up-right"></i> Open App
-                                                    </a>
+                                                    <% 
+                                                    let ingressUrl = '';
+                                                    if (installed.deployment_details) {
+                                                        const details = Array.isArray(installed.deployment_details) ? installed.deployment_details : [installed.deployment_details];
+                                                        const ingress = details.find(detail => 
+                                                            detail?.resource?.kind === 'Ingress' && 
+                                                            detail?.raw_response?.spec?.rules?.[0]?.host
+                                                        );
+                                                        if (ingress) {
+                                                            ingressUrl = `https://${ingress.raw_response.spec.rules[0].host}`;
+                                                        }
+                                                    }
+                                                    const isDone = installed.status.toLowerCase() === 'done' || installed.status.toLowerCase() === 'completed';
+                                                    %>
+                                                    <% if (ingressUrl && isDone) { %>
+                                                        <a href="<%= ingressUrl %>" target="_blank" class="btn btn-primary btn-sm">
+                                                            <i class="bi bi-box-arrow-up-right"></i> Open App
+                                                        </a>
+                                                    <% } %>
                                                 </div>
                                             </div>
                                         </div>

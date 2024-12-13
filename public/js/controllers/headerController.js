@@ -77,19 +77,20 @@ if (!window.headerControllerInitialized) {
             const userName = document.getElementById('userName');
             
             if (user) {
-                // Update name - prioritize name from user data
+                // Update name - prioritize name from backend data
                 const displayName = user.name || user.displayName || user.email?.split('@')[0] || 'User';
                 if (userName) {
                     userName.textContent = displayName;
+                    // Store the name in localStorage for persistence
+                    localStorage.setItem('userName', displayName);
                 }
 
-                // Update photo
-                if (userPhotoContainer && user.photoURL) {
-                    userPhotoContainer.innerHTML = `<img src="${user.photoURL}" alt="Profile" class="rounded-circle" style="width: 24px; height: 24px; object-fit: cover;">`;
-                } else if (userPhotoContainer) {
-                    // Fallback to initials avatar if no photo URL
-                    const fallbackURL = `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=7B7FF6&color=fff`;
-                    userPhotoContainer.innerHTML = `<img src="${fallbackURL}" alt="Profile" class="rounded-circle" style="width: 24px; height: 24px;">`;
+                // Update photo - prioritize backend photoURL
+                const photoUrl = user.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=7B7FF6&color=fff`;
+                if (userPhotoContainer) {
+                    userPhotoContainer.innerHTML = `<img src="${photoUrl}" alt="Profile" class="rounded-circle" style="width: 24px; height: 24px; object-fit: cover;">`;
+                    // Store the photo URL in localStorage for persistence
+                    localStorage.setItem('userPhotoURL', photoUrl);
                 }
             } else {
                 // Reset to default state
@@ -99,6 +100,25 @@ if (!window.headerControllerInitialized) {
                 if (userName) {
                     userName.textContent = 'Guest';
                 }
+                // Clear stored values
+                localStorage.removeItem('userName');
+                localStorage.removeItem('userPhotoURL');
+            }
+        }
+
+        // Add a function to restore UI from localStorage
+        function restoreUserUI() {
+            const storedName = localStorage.getItem('userName');
+            const storedPhotoURL = localStorage.getItem('userPhotoURL');
+            const userPhotoContainer = document.getElementById('userPhotoContainer');
+            const userName = document.getElementById('userName');
+
+            if (storedName && userName) {
+                userName.textContent = storedName;
+            }
+
+            if (storedPhotoURL && userPhotoContainer) {
+                userPhotoContainer.innerHTML = `<img src="${storedPhotoURL}" alt="Profile" class="rounded-circle" style="width: 24px; height: 24px; object-fit: cover;">`;
             }
         }
 
@@ -119,20 +139,31 @@ if (!window.headerControllerInitialized) {
             });
         }
 
-        // Handle auth state changes
+        // Initialize Firebase Auth listener
         firebase.auth().onAuthStateChanged(async (user) => {
-            try {
-                const userData = await window.handleAuthStateChange(user);
-                if (userData) {
-                    updateUserUI(window.currentUser);
-                } else {
-                    updateUserUI(null);
+            if (user) {
+                try {
+                    const userData = await window.handleAuthStateChange(user);
+                    if (userData?.user) {
+                        updateUserUI({
+                            ...user,
+                            name: userData.user.name,
+                            photoURL: userData.user.photoURL
+                        });
+                    } else {
+                        updateUserUI(user);
+                    }
+                } catch (error) {
+                    console.error('Error handling auth state change:', error);
+                    updateUserUI(user);
                 }
-            } catch (error) {
-                console.error('Error in auth state change:', error);
+            } else {
                 updateUserUI(null);
             }
         });
+
+        // Restore UI from localStorage on page load
+        restoreUserUI();
     });
     window.headerControllerInitialized = true;
 } 

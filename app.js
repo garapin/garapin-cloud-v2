@@ -269,6 +269,12 @@ async function generateUniqueNamespace() {
 // Function to create namespace via API
 async function createNamespaceViaAPI(namespace) {
     try {
+        // Check if required environment variables are set
+        if (!process.env.CREATE_NAMESPACE_API_URL || !process.env.DEPLOYMENT_API_USER || !process.env.DEPLOYMENT_API_KEY) {
+            console.error('Missing required environment variables for namespace creation');
+            throw new Error('Namespace creation configuration missing');
+        }
+
         const response = await fetch(process.env.CREATE_NAMESPACE_API_URL, {
             method: 'POST',
             headers: {
@@ -281,6 +287,12 @@ async function createNamespaceViaAPI(namespace) {
         });
 
         if (!response.ok) {
+            const errorText = await response.text();
+            console.error('Namespace creation failed:', {
+                status: response.status,
+                statusText: response.statusText,
+                error: errorText
+            });
             throw new Error(`Failed to create namespace: ${response.statusText}`);
         }
 
@@ -304,15 +316,29 @@ app.post('/auth/user', verifyToken, async (req, res) => {
         // First check if user exists by email
         let user = await User.findOne({ email });
         let namespaceCreated = false;
+        let retryCount = 0;
+        const maxRetries = 3;
 
         if (!user) {
             // If user doesn't exist, create new user with namespace
             const namespace = await generateUniqueNamespace();
             
-            // Create namespace via API only if it's a new namespace
-            await createNamespaceViaAPI(namespace);
-            console.log('Created namespace via API:', namespace);
-            namespaceCreated = true;
+            // Try to create namespace with retries
+            while (retryCount < maxRetries) {
+                try {
+                    await createNamespaceViaAPI(namespace);
+                    console.log('Created namespace via API:', namespace);
+                    namespaceCreated = true;
+                    break;
+                } catch (error) {
+                    retryCount++;
+                    if (retryCount === maxRetries) {
+                        console.error('Failed to create namespace after retries:', error);
+                        throw error;
+                    }
+                    await new Promise(resolve => setTimeout(resolve, 1000 * retryCount)); // Exponential backoff
+                }
+            }
 
             user = await User.create({
                 name,
@@ -331,10 +357,22 @@ app.post('/auth/user', verifyToken, async (req, res) => {
             if (!user.namespace) {
                 const namespace = await generateUniqueNamespace();
                 
-                // Create namespace via API only if it's a new namespace
-                await createNamespaceViaAPI(namespace);
-                console.log('Created namespace via API:', namespace);
-                namespaceCreated = true;
+                // Try to create namespace with retries
+                while (retryCount < maxRetries) {
+                    try {
+                        await createNamespaceViaAPI(namespace);
+                        console.log('Created namespace via API:', namespace);
+                        namespaceCreated = true;
+                        break;
+                    } catch (error) {
+                        retryCount++;
+                        if (retryCount === maxRetries) {
+                            console.error('Failed to create namespace after retries:', error);
+                            throw error;
+                        }
+                        await new Promise(resolve => setTimeout(resolve, 1000 * retryCount)); // Exponential backoff
+                    }
+                }
 
                 user = await User.findOneAndUpdate(
                     { email },
