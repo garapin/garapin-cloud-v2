@@ -13,9 +13,29 @@
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-auth-compat.js"></script>
+    <!-- Add resource loading check -->
+    <script>
+        window.addEventListener('error', function(e) {
+            console.error('Resource loading error:', {
+                message: e.message,
+                filename: e.filename,
+                lineno: e.lineno,
+                colno: e.colno
+            });
+        }, true);  // Use capture to catch resource loading errors
+    </script>
 </head>
 <body>
     <div class="container-fluid vh-100" data-firebase-config='<%= JSON.stringify(firebaseConfig) %>'>
+        <!-- Add config check -->
+        <script>
+            console.log('Environment check:', {
+                hostname: window.location.hostname,
+                protocol: window.location.protocol,
+                firebaseConfigPresent: !!document.querySelector('[data-firebase-config]'),
+                firebaseSDKLoaded: typeof firebase !== 'undefined'
+            });
+        </script>
         <div class="row h-100">
             <!-- Left Panel with Background Image -->
             <div class="col-md-6 p-0">
@@ -29,7 +49,8 @@
                     <div class="d-grid gap-3">
                         <button id="googleLogin" class="btn btn-outline-dark btn-lg d-flex align-items-center justify-content-center gap-2">
                             <img src="https://www.google.com/favicon.ico" alt="Google" width="20" height="20">
-                            Login with Google
+                            <span class="button-text">Login with Google</span>
+                            <span class="spinner-border spinner-border-sm ms-2 d-none" role="status"></span>
                         </button>
                         <div class="mt-3">
                             <small class="text-muted d-flex align-items-center justify-content-center gap-2">
@@ -38,28 +59,129 @@
                             </small>
                         </div>
                     </div>
+                    <!-- Add loading indicator -->
+                    <div id="loadingIndicator" class="mt-3 d-none">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <div class="text-muted mt-2" id="loadingText">Initializing...</div>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
     <script>
+        // Debug logging function
+        function debugLog(message, data = null) {
+            console.log(`[Login Debug] ${message}`, data || '');
+        }
+
+        // Show loading state
+        function showLoading(message) {
+            const button = document.getElementById('googleLogin');
+            const loadingIndicator = document.getElementById('loadingIndicator');
+            const loadingText = document.getElementById('loadingText');
+            const buttonSpinner = button.querySelector('.spinner-border');
+            const buttonText = button.querySelector('.button-text');
+
+            button.disabled = true;
+            buttonSpinner.classList.remove('d-none');
+            buttonText.textContent = 'Please wait...';
+            loadingIndicator.classList.remove('d-none');
+            loadingText.textContent = message;
+        }
+
+        // Hide loading state
+        function hideLoading() {
+            const button = document.getElementById('googleLogin');
+            const loadingIndicator = document.getElementById('loadingIndicator');
+            const buttonSpinner = button.querySelector('.spinner-border');
+            const buttonText = button.querySelector('.button-text');
+
+            button.disabled = false;
+            buttonSpinner.classList.add('d-none');
+            buttonText.textContent = 'Login with Google';
+            loadingIndicator.classList.add('d-none');
+        }
+
         // Initialize Firebase with your config
+        console.log('Starting Firebase initialization check');
         const firebaseConfig = JSON.parse(document.querySelector('[data-firebase-config]').dataset.firebaseConfig);
-        firebase.initializeApp(firebaseConfig);
+        
+        // Log environment info
+        console.log('Environment:', {
+            host: window.location.hostname,
+            isProduction: window.location.hostname === 'console.garapin.cloud',
+            firebaseConfig: {
+                projectId: firebaseConfig.projectId,
+                authDomain: firebaseConfig.authDomain
+            }
+        });
+
+        // Initialize Firebase
+        try {
+            if (!firebase.apps?.length) {
+                firebase.initializeApp(firebaseConfig);
+                console.log('Firebase initialized successfully');
+            } else {
+                console.log('Firebase already initialized');
+            }
+        } catch (error) {
+            console.error('Firebase initialization error:', error);
+            alert('Failed to initialize application. Please try refreshing the page.');
+        }
+
+        // Check if already logged in
+        firebase.auth().onAuthStateChanged((user) => {
+            console.log('Auth state changed:', user ? 'User logged in' : 'No user');
+            if (user) {
+                console.log('Redirecting to dashboard...');
+                window.location.href = '/dashboard';
+            }
+        });
 
         // Google Sign-in
-        document.getElementById('googleLogin').addEventListener('click', () => {
-            const provider = new firebase.auth.GoogleAuthProvider();
-            firebase.auth().signInWithPopup(provider)
-                .then((result) => {
-                    // Successfully logged in
-                    window.location.href = '/dashboard';
-                })
-                .catch((error) => {
-                    console.error('Error:', error);
-                    alert('Login failed. Please try again.');
-                });
+        document.getElementById('googleLogin').addEventListener('click', async () => {
+            const button = document.getElementById('googleLogin');
+            try {
+                // Disable button and show loading state
+                button.disabled = true;
+                button.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status"></span>Please wait...';
+                
+                console.log('Starting Google sign-in');
+                const provider = new firebase.auth.GoogleAuthProvider();
+                // Force account selection in production
+                if (window.location.hostname === 'console.garapin.cloud') {
+                    provider.setCustomParameters({
+                        prompt: 'select_account'
+                    });
+                }
+                
+                const result = await firebase.auth().signInWithPopup(provider);
+                console.log('Google sign-in successful');
+                
+                const token = await result.user.getIdToken();
+                console.log('Token received, redirecting...');
+                
+                window.location.href = '/dashboard';
+            } catch (error) {
+                console.error('Login error:', error);
+                // Reset button state
+                button.disabled = false;
+                button.innerHTML = '<img src="https://www.google.com/favicon.ico" alt="Google" width="20" height="20"> Login with Google';
+                alert('Login failed: ' + (error.message || 'Please try again.'));
+            }
+        });
+
+        // Monitor resource loading
+        window.addEventListener('load', () => {
+            console.log('All resources loaded');
+            const resources = performance.getEntriesByType('resource');
+            const failedResources = resources.filter(r => !r.responseEnd);
+            if (failedResources.length > 0) {
+                console.warn('Failed to load resources:', failedResources);
+            }
         });
     </script>
 </body>
