@@ -106,37 +106,40 @@
         }
 
         // Initialize Firebase with your config
-        console.log('Starting Firebase initialization check');
+        console.log('Starting Firebase initialization');
         const firebaseConfig = JSON.parse(document.querySelector('[data-firebase-config]').dataset.firebaseConfig);
         
-        // Log environment info
-        console.log('Environment:', {
-            host: window.location.hostname,
-            isProduction: window.location.hostname === 'console.garapin.cloud',
-            firebaseConfig: {
-                projectId: firebaseConfig.projectId,
-                authDomain: firebaseConfig.authDomain
-            }
-        });
-
-        // Initialize Firebase
         try {
             if (!firebase.apps?.length) {
                 firebase.initializeApp(firebaseConfig);
                 console.log('Firebase initialized successfully');
-            } else {
-                console.log('Firebase already initialized');
             }
         } catch (error) {
             console.error('Firebase initialization error:', error);
             alert('Failed to initialize application. Please try refreshing the page.');
         }
 
+        // Handle redirect result
+        firebase.auth()
+            .getRedirectResult()
+            .then((result) => {
+                if (result.user) {
+                    console.log('Redirect sign-in successful');
+                    window.location.href = '/dashboard';
+                }
+            })
+            .catch((error) => {
+                console.error('Redirect sign-in error:', error);
+                if (error.code !== 'auth/credential-already-in-use') {
+                    alert('Login failed: ' + error.message);
+                }
+            });
+
         // Check if already logged in
         firebase.auth().onAuthStateChanged((user) => {
             console.log('Auth state changed:', user ? 'User logged in' : 'No user');
             if (user) {
-                console.log('Redirecting to dashboard...');
+                console.log('User already logged in, redirecting...');
                 window.location.href = '/dashboard';
             }
         });
@@ -151,26 +154,44 @@
                 
                 console.log('Starting Google sign-in');
                 const provider = new firebase.auth.GoogleAuthProvider();
-                // Force account selection in production
-                if (window.location.hostname === 'console.garapin.cloud') {
-                    provider.setCustomParameters({
-                        prompt: 'select_account'
-                    });
-                }
                 
-                const result = await firebase.auth().signInWithPopup(provider);
-                console.log('Google sign-in successful');
-                
-                const token = await result.user.getIdToken();
-                console.log('Token received, redirecting...');
-                
-                window.location.href = '/dashboard';
+                // Add scopes and custom parameters
+                provider.addScope('profile');
+                provider.addScope('email');
+                provider.setCustomParameters({
+                    prompt: 'select_account'
+                });
+
+                // Use redirect instead of popup
+                await firebase.auth().signInWithRedirect(provider);
+                // The page will redirect to Google at this point
             } catch (error) {
                 console.error('Login error:', error);
                 // Reset button state
                 button.disabled = false;
                 button.innerHTML = '<img src="https://www.google.com/favicon.ico" alt="Google" width="20" height="20"> Login with Google';
-                alert('Login failed: ' + (error.message || 'Please try again.'));
+                
+                // Show specific error messages
+                if (error.code === 'auth/popup-closed-by-user') {
+                    alert('Login was cancelled. Please try again.');
+                } else if (error.code === 'auth/network-request-failed') {
+                    alert('Network error. Please check your connection and try again.');
+                } else {
+                    alert('Login failed: ' + error.message);
+                }
+            }
+        });
+
+        // Monitor auth state for debugging
+        firebase.auth().onAuthStateChanged((user) => {
+            if (user) {
+                console.log('Auth state: Logged in', {
+                    uid: user.uid,
+                    email: user.email,
+                    displayName: user.displayName
+                });
+            } else {
+                console.log('Auth state: Logged out');
             }
         });
 
