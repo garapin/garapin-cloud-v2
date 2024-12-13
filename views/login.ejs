@@ -119,13 +119,49 @@
             alert('Failed to initialize application. Please try refreshing the page.');
         }
 
+        // Function to handle successful authentication
+        async function handleSuccessfulAuth(user) {
+            try {
+                console.log('Authentication successful, getting token...');
+                const token = await user.getIdToken(true);
+                
+                console.log('Sending auth data to server...');
+                const response = await fetch('/auth/user', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        name: user.displayName,
+                        email: user.email,
+                        provider_uid: user.uid,
+                        photoURL: user.photoURL
+                    })
+                });
+
+                if (response.ok) {
+                    console.log('Server authentication successful, redirecting...');
+                    window.location.href = '/dashboard';
+                } else {
+                    console.error('Server authentication failed:', await response.text());
+                    alert('Failed to complete login. Please try again.');
+                }
+            } catch (error) {
+                console.error('Error in handleSuccessfulAuth:', error);
+                alert('Failed to complete login process. Please try again.');
+            }
+        }
+
         // Handle redirect result
         firebase.auth()
             .getRedirectResult()
             .then((result) => {
                 if (result.user) {
-                    console.log('Redirect sign-in successful');
-                    window.location.href = '/dashboard';
+                    console.log('Redirect sign-in successful, handling auth...');
+                    handleSuccessfulAuth(result.user);
+                } else {
+                    console.log('No redirect result');
                 }
             })
             .catch((error) => {
@@ -136,11 +172,15 @@
             });
 
         // Check if already logged in
-        firebase.auth().onAuthStateChanged((user) => {
+        firebase.auth().onAuthStateChanged(async (user) => {
             console.log('Auth state changed:', user ? 'User logged in' : 'No user');
             if (user) {
-                console.log('User already logged in, redirecting...');
-                window.location.href = '/dashboard';
+                console.log('User authenticated:', {
+                    displayName: user.displayName,
+                    email: user.email,
+                    uid: user.uid
+                });
+                await handleSuccessfulAuth(user);
             }
         });
 
@@ -154,17 +194,22 @@
                 
                 console.log('Starting Google sign-in');
                 const provider = new firebase.auth.GoogleAuthProvider();
-                
-                // Add scopes and custom parameters
                 provider.addScope('profile');
                 provider.addScope('email');
                 provider.setCustomParameters({
                     prompt: 'select_account'
                 });
 
-                // Use redirect instead of popup
-                await firebase.auth().signInWithRedirect(provider);
-                // The page will redirect to Google at this point
+                // Try popup first, fall back to redirect if needed
+                try {
+                    console.log('Attempting popup sign-in...');
+                    const result = await firebase.auth().signInWithPopup(provider);
+                    console.log('Popup sign-in successful');
+                    await handleSuccessfulAuth(result.user);
+                } catch (popupError) {
+                    console.log('Popup failed, trying redirect...', popupError);
+                    await firebase.auth().signInWithRedirect(provider);
+                }
             } catch (error) {
                 console.error('Login error:', error);
                 // Reset button state
