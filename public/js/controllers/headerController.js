@@ -4,6 +4,66 @@ if (!window.headerControllerInitialized) {
     window.isAuthenticating = false;
     window.currentUser = null;
 
+    // Global function to update UI with user data
+    function updateUserUI(user) {
+        const userPhotoContainer = document.getElementById('userPhotoContainer');
+        const userName = document.getElementById('userName');
+        
+        if (user) {
+            console.log('UpdateUserUI received user data:', {
+                rawUser: user,
+                delegate: user._delegate,
+                displayName: user.displayName || user._delegate?.displayName
+            });
+
+            // Get the most reliable name source
+            const displayName = user.displayName || 
+                              user._delegate?.displayName || 
+                              localStorage.getItem('userName') || 
+                              user.email?.split('@')[0] || 
+                              'User';
+            
+            console.log('Updating UI with name:', displayName, 'from user data:', {
+                displayName: user.displayName,
+                delegateDisplayName: user._delegate?.displayName,
+                storedName: localStorage.getItem('userName'),
+                email: user.email
+            });
+            
+            if (userName) {
+                userName.textContent = displayName;
+                // Update localStorage with the current display name
+                localStorage.setItem('userName', displayName);
+            }
+
+            // Get the most reliable photo source
+            const photoUrl = user.photoURL || 
+                           user._delegate?.photoURL || 
+                           localStorage.getItem('userPhotoURL') || 
+                           `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=7B7FF6&color=fff`;
+            
+            if (userPhotoContainer) {
+                userPhotoContainer.innerHTML = `<img src="${photoUrl}" alt="Profile" class="rounded-circle" style="width: 24px; height: 24px; object-fit: cover;">`;
+                // Update localStorage with the current photo URL
+                if (photoUrl && !photoUrl.includes('ui-avatars.com')) {
+                    localStorage.setItem('userPhotoURL', photoUrl);
+                }
+            }
+        } else {
+            if (userPhotoContainer) {
+                userPhotoContainer.innerHTML = '<i class="bi bi-person-circle" style="font-size: 1.2rem;"></i>';
+            }
+            if (userName) {
+                userName.textContent = 'Guest';
+            }
+            // Clear localStorage
+            localStorage.removeItem('userName');
+            localStorage.removeItem('userPhotoURL');
+        }
+    }
+    // Make updateUserUI available globally
+    window.updateUserUI = updateUserUI;
+
     // Global auth handler that other controllers can use
     window.handleAuthStateChange = async (user) => {
         if (window.isAuthenticating) return;
@@ -13,6 +73,8 @@ if (!window.headerControllerInitialized) {
             
             if (user) {
                 const token = await user.getIdToken(true);
+                console.log('Sending auth request for user:', user.displayName || user._delegate?.displayName);
+
                 const response = await fetch('/auth/user', {
                     method: 'POST',
                     headers: {
@@ -20,38 +82,64 @@ if (!window.headerControllerInitialized) {
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
-                        name: user.displayName,
+                        name: user.displayName || user._delegate?.displayName,
                         email: user.email,
                         provider_uid: user.uid,
-                        photoURL: user.photoURL
+                        photoURL: user.photoURL || user._delegate?.photoURL
                     })
                 });
 
                 if (response.ok) {
                     const userData = await response.json();
-                    localStorage.setItem('authToken', token);
-                    window.currentUser = {
-                        ...user,
-                        name: userData.user.name || user.displayName,
-                        photoURL: userData.user.photoURL || user.photoURL
-                    };
+                    console.log('Received user data from server:', userData);
                     
-                    // If we're on the login page and auth is successful, redirect to dashboard
+                    if (userData.user) {
+                        // Store the token and user data
+                        localStorage.setItem('authToken', token);
+                        localStorage.setItem('userName', userData.user.name || user.displayName || user._delegate?.displayName);
+                        localStorage.setItem('userEmail', userData.user.email);
+                        localStorage.setItem('userPhotoURL', userData.user.photoURL || user.photoURL || user._delegate?.photoURL);
+                        
+                        // Update global user object with merged data
+                        window.currentUser = {
+                            ...user,
+                            displayName: userData.user.name || user.displayName || user._delegate?.displayName,
+                            email: userData.user.email,
+                            photoURL: userData.user.photoURL || user.photoURL || user._delegate?.photoURL,
+                            namespace: userData.user.namespace
+                        };
+                        
+                        // Update UI immediately with merged data
+                        updateUserUI(window.currentUser);
+                    } else {
+                        console.error('Server response missing user data:', userData);
+                        updateUserUI(user);
+                    }
+                    
                     if (window.location.pathname === '/') {
                         window.location.href = '/dashboard';
                     }
                     return userData;
+                } else {
+                    console.error('Failed to update user on server:', await response.text());
+                    updateUserUI(user);
                 }
             } else {
                 window.currentUser = null;
                 localStorage.removeItem('authToken');
-                // Only redirect to login if we're not already there
+                localStorage.removeItem('userName');
+                localStorage.removeItem('userEmail');
+                localStorage.removeItem('userPhotoURL');
+                
+                updateUserUI(null);
+                
                 if (window.location.pathname !== '/') {
                     window.location.href = '/';
                 }
             }
         } catch (error) {
             console.error('Auth handler error:', error);
+            updateUserUI(user); // Fallback to Firebase user data
             throw error;
         } finally {
             window.isAuthenticating = false;
@@ -66,89 +154,51 @@ if (!window.headerControllerInitialized) {
             if (!firebase.apps?.length) {
                 firebase.initializeApp(firebaseConfig);
             }
+
+            // Set up logout button handler
+            const logoutButton = document.getElementById('logoutButton');
+            if (logoutButton) {
+                logoutButton.addEventListener('click', async (event) => {
+                    event.preventDefault();
+                    console.log('Logout clicked');
+                    try {
+                        await firebase.auth().signOut();
+                        console.log('Firebase sign out successful');
+                        // Clear all stored data
+                        localStorage.removeItem('authToken');
+                        localStorage.removeItem('userName');
+                        localStorage.removeItem('userEmail');
+                        localStorage.removeItem('userPhotoURL');
+                        sessionStorage.clear();
+                        // Redirect to login page
+                        window.location.href = '/';
+                    } catch (error) {
+                        console.error('Logout error:', error);
+                        alert('Failed to logout. Please try again.');
+                    }
+                });
+            } else {
+                console.warn('Logout button not found in the DOM');
+            }
         } catch (error) {
             console.error('Firebase initialization error:', error);
             return;
-        }
-
-        // Function to update UI with user data
-        function updateUserUI(user) {
-            const userPhotoContainer = document.getElementById('userPhotoContainer');
-            const userName = document.getElementById('userName');
-            
-            if (user) {
-                // Update name - prioritize name from backend data
-                const displayName = user.name || user.displayName || user.email?.split('@')[0] || 'User';
-                if (userName) {
-                    userName.textContent = displayName;
-                    // Store the name in localStorage for persistence
-                    localStorage.setItem('userName', displayName);
-                }
-
-                // Update photo - prioritize backend photoURL
-                const photoUrl = user.photoURL || `https://ui-avatars.com/api/?name=${encodeURIComponent(displayName)}&background=7B7FF6&color=fff`;
-                if (userPhotoContainer) {
-                    userPhotoContainer.innerHTML = `<img src="${photoUrl}" alt="Profile" class="rounded-circle" style="width: 24px; height: 24px; object-fit: cover;">`;
-                    // Store the photo URL in localStorage for persistence
-                    localStorage.setItem('userPhotoURL', photoUrl);
-                }
-            } else {
-                // Reset to default state
-                if (userPhotoContainer) {
-                    userPhotoContainer.innerHTML = '<i class="bi bi-person-circle" style="font-size: 1.2rem;"></i>';
-                }
-                if (userName) {
-                    userName.textContent = 'Guest';
-                }
-                // Clear stored values
-                localStorage.removeItem('userName');
-                localStorage.removeItem('userPhotoURL');
-            }
-        }
-
-        // Add a function to restore UI from localStorage
-        function restoreUserUI() {
-            const storedName = localStorage.getItem('userName');
-            const storedPhotoURL = localStorage.getItem('userPhotoURL');
-            const userPhotoContainer = document.getElementById('userPhotoContainer');
-            const userName = document.getElementById('userName');
-
-            if (storedName && userName) {
-                userName.textContent = storedName;
-            }
-
-            if (storedPhotoURL && userPhotoContainer) {
-                userPhotoContainer.innerHTML = `<img src="${storedPhotoURL}" alt="Profile" class="rounded-circle" style="width: 24px; height: 24px; object-fit: cover;">`;
-            }
-        }
-
-        // Set up logout button handler
-        const logoutButton = document.getElementById('logoutButton');
-        if (logoutButton) {
-            logoutButton.addEventListener('click', async (event) => {
-                event.preventDefault();
-                try {
-                    await firebase.auth().signOut();
-                    localStorage.removeItem('authToken');
-                    sessionStorage.clear();
-                    window.location.href = '/';
-                } catch (error) {
-                    console.error('Logout error:', error);
-                    alert('Failed to logout. Please try again.');
-                }
-            });
         }
 
         // Initialize Firebase Auth listener
         firebase.auth().onAuthStateChanged(async (user) => {
             if (user) {
                 try {
+                    console.log('Auth state changed - user logged in:', user.displayName || user._delegate?.displayName);
                     const userData = await window.handleAuthStateChange(user);
                     if (userData?.user) {
+                        // Use merged data
                         updateUserUI({
                             ...user,
-                            name: userData.user.name,
-                            photoURL: userData.user.photoURL
+                            displayName: userData.user.name || user.displayName || user._delegate?.displayName,
+                            email: userData.user.email,
+                            photoURL: userData.user.photoURL || user.photoURL || user._delegate?.photoURL,
+                            namespace: userData.user.namespace
                         });
                     } else {
                         updateUserUI(user);
@@ -158,12 +208,21 @@ if (!window.headerControllerInitialized) {
                     updateUserUI(user);
                 }
             } else {
+                console.log('Auth state changed - user logged out');
                 updateUserUI(null);
             }
         });
 
-        // Restore UI from localStorage on page load
-        restoreUserUI();
+        // Initial UI update from localStorage
+        const storedName = localStorage.getItem('userName');
+        const storedPhotoURL = localStorage.getItem('userPhotoURL');
+        if (storedName || storedPhotoURL) {
+            console.log('Restoring UI from localStorage - name:', storedName);
+            updateUserUI({
+                displayName: storedName,
+                photoURL: storedPhotoURL
+            });
+        }
     });
     window.headerControllerInitialized = true;
 } 

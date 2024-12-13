@@ -313,13 +313,14 @@ app.post('/auth/user', verifyToken, async (req, res) => {
         
         const jakartaTime = moment().tz('Asia/Jakarta').toDate();
 
-        // First check if user exists by email
-        let user = await User.findOne({ email });
+        // First check if user exists by provider_uid (more reliable than email)
+        let user = await User.findOne({ provider_uid });
         let namespaceCreated = false;
         let retryCount = 0;
         const maxRetries = 3;
 
         if (!user) {
+            console.log('User not found, creating new user...');
             // If user doesn't exist, create new user with namespace
             const namespace = await generateUniqueNamespace();
             
@@ -331,26 +332,42 @@ app.post('/auth/user', verifyToken, async (req, res) => {
                     namespaceCreated = true;
                     break;
                 } catch (error) {
+                    console.error('Namespace creation attempt failed:', error);
                     retryCount++;
                     if (retryCount === maxRetries) {
                         console.error('Failed to create namespace after retries:', error);
                         throw error;
                     }
-                    await new Promise(resolve => setTimeout(resolve, 1000 * retryCount)); // Exponential backoff
+                    await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
                 }
             }
 
-            user = await User.create({
-                name,
-                email,
-                provider: 'google',
-                provider_uid,
-                photoURL: storedPhotoURL || photoURL,
-                namespace,
-                created_at: jakartaTime,
-                updated_at: jakartaTime,
-                last_login_at: jakartaTime
-            });
+            try {
+                user = await User.create({
+                    name,
+                    email,
+                    provider: 'google',
+                    provider_uid,
+                    photoURL: storedPhotoURL || photoURL,
+                    namespace,
+                    created_at: jakartaTime,
+                    updated_at: jakartaTime,
+                    last_login_at: jakartaTime
+                });
+                console.log('Created new user:', user);
+            } catch (dbError) {
+                console.error('Database error creating user:', dbError);
+                // If there's a duplicate key error, try to find the user again
+                if (dbError.code === 11000) {
+                    user = await User.findOne({ provider_uid });
+                    if (!user) {
+                        throw dbError;
+                    }
+                } else {
+                    throw dbError;
+                }
+            }
+
             console.log('Created new user with namespace:', namespace);
         } else {
             // If user exists but doesn't have namespace, generate one
