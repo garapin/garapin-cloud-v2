@@ -22,20 +22,37 @@ const InstalledApp = require('./models/InstalledApp');
 
 const app = express();
 
-// Add CSP headers middleware
+// Add CSP and Cross-Origin headers middleware
 app.use((req, res, next) => {
+    // Set CSP headers
     res.setHeader(
         'Content-Security-Policy',
         "default-src 'self'; " +
-        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.gstatic.com https://apis.google.com https://*.firebaseio.com https://www.googleapis.com; " +
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.gstatic.com https://apis.google.com https://*.firebaseio.com https://*.firebaseapp.com https://www.googleapis.com; " +
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; " +
         "font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net; " +
         "img-src 'self' data: https: blob:; " +
-        "connect-src 'self' https://*.firebaseio.com https://www.googleapis.com https://securetoken.googleapis.com https://identitytoolkit.googleapis.com; " +
-        "frame-src 'self' https://console.garapin.cloud https://*.firebaseio.com https://*.firebase.com https://accounts.google.com; " +
+        "connect-src 'self' https://*.firebaseio.com https://www.googleapis.com https://securetoken.googleapis.com https://identitytoolkit.googleapis.com wss://*.firebaseio.com; " +
+        "frame-src 'self' https://console.garapin.cloud https://*.firebaseio.com https://*.firebaseapp.com https://*.firebase.com https://accounts.google.com; " +
         "object-src 'none';"
     );
+
+    // Set Cross-Origin headers
+    res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
+    res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
+    
+    // Set CORS headers
+    res.setHeader('Access-Control-Allow-Origin', 'https://garapin-cloud.firebaseapp.com');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+
     next();
+});
+
+// Handle OPTIONS requests for CORS
+app.options('*', (req, res) => {
+    res.status(200).end();
 });
 
 // Initialize Firebase Admin SDK
