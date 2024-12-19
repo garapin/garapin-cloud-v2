@@ -238,7 +238,8 @@ router.post('/install/:appId', async (req, res) => {
                 // Update deployment details for installations that use this base image
                 for (const installation of installationRecords) {
                     const app = await Application.findById(installation.application_id);
-                    if (app && app.base_image.map(img => img.toString()).includes(baseImageId)) {
+                    // Only save deployment details if this is the main base image
+                    if (app && app.main_base_image && app.main_base_image.toString() === baseImageId) {
                         // Process each resource in the response
                         for (const resource of resources) {
                             // Create deployment detail object
@@ -313,7 +314,8 @@ router.post('/install/:appId', async (req, res) => {
                 // Mark affected installations as failed
                 for (const installation of installationRecords) {
                     const app = await Application.findById(installation.application_id);
-                    if (app && app.base_image.map(img => img.toString()).includes(baseImageId)) {
+                    // Only update status for main base image failures
+                    if (app && app.main_base_image && app.main_base_image.toString() === baseImageId) {
                         const failedDeployment = {
                             base_image: baseImageId,
                             error: error.message,
@@ -394,17 +396,108 @@ router.get('/installation-status/:installationId', async (req, res) => {
             return res.status(403).json({ error: 'Not authorized to view this installation' });
         }
 
+        // Get user namespace
+        const user = await User.findOne({ provider_uid: decodedToken.uid });
+        if (!user || !user.namespace) {
+            return res.status(400).json({ error: 'User namespace not configured' });
+        }
+
         // Return installation status
         res.json({
             status: installation.status,
             current_image: installation.current_image,
             total_images: installation.total_images,
-            deployment_details: installation.deployment_details
+            deployment_details: installation.deployment_details,
+            namespace: user.namespace,
+            delete_deployment_url: process.env.DELETE_DEPLOYMENT_API_URL || '/api/deployment/delete'
         });
 
     } catch (error) {
         console.error('Error checking installation status:', error);
         res.status(500).json({ error: 'Failed to check installation status' });
+    }
+});
+
+// Update installation status for removal
+router.post('/installation/:installationId/remove', async (req, res) => {
+    try {
+        const { installationId } = req.params;
+
+        // Get user from auth token
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({ error: 'No auth token provided' });
+        }
+
+        const token = authHeader.split('Bearer ')[1];
+        const decodedToken = await admin.auth().verifyIdToken(token);
+
+        // Get installation
+        const installation = await InstalledApp.findById(installationId);
+        
+        if (!installation) {
+            return res.status(404).json({ error: 'Installation not found' });
+        }
+
+        // Check if the installation belongs to the user
+        if (installation.user_id !== decodedToken.uid) {
+            return res.status(403).json({ error: 'Not authorized to modify this installation' });
+        }
+
+        // Update installation status to remove
+        installation.status = 'remove';
+        await installation.save();
+
+        res.json({ 
+            success: true,
+            message: 'Installation status updated to remove',
+            installation: {
+                id: installation._id,
+                status: installation.status
+            }
+        });
+
+    } catch (error) {
+        console.error('Error updating installation status:', error);
+        res.status(500).json({ error: 'Failed to update installation status' });
+    }
+});
+
+// Proxy endpoint for delete deployment
+router.post('/proxy-delete-deployment', async (req, res) => {
+    try {
+        // Get user from auth token
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return res.status(401).json({ error: 'No auth token provided' });
+        }
+
+        const token = authHeader.split('Bearer ')[1];
+        const decodedToken = await admin.auth().verifyIdToken(token);
+
+        // Forward the request to n8n service
+        const response = await fetch(process.env.DELETE_DEPLOYMENT_API_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'garapin-cloud-frontend': process.env.DEPLOYMENT_API_KEY
+            },
+            body: JSON.stringify(req.body)
+        });
+
+        const data = await response.text();
+        let responseData;
+        try {
+            responseData = JSON.parse(data);
+        } catch (e) {
+            responseData = { message: data };
+        }
+
+        res.status(response.status).json(responseData);
+
+    } catch (error) {
+        console.error('Error proxying delete deployment request:', error);
+        res.status(500).json({ error: 'Failed to process delete deployment request' });
     }
 });
 

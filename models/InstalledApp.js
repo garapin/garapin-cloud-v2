@@ -12,7 +12,7 @@ const installedAppSchema = new mongoose.Schema({
     },
     status: {
         type: String,
-        enum: ['init', 'pending', 'completed', 'failed'],
+        enum: ['init', 'pending', 'completed', 'failed', 'remove'],
         default: 'init'
     },
     installed_at: {
