@@ -84,9 +84,12 @@
                                                         } else if (status === 'COMPLETED' || status === 'DONE') {
                                                             statusClass = 'badge bg-success text-white';
                                                             displayStatus = 'Running';
+                                                        } else if (status === 'REMOVE') {
+                                                            statusClass = 'badge bg-secondary text-white';
+                                                            displayStatus = 'Removed';
                                                         } else {
                                                             statusClass = 'badge bg-secondary text-white';
-                                                            displayStatus = status;
+                                                            displayStatus = status.toLowerCase();
                                                         }
                                                         %>
                                                         <span class="<%= statusClass %> app-status" style="border-radius: 4px; padding: 4px 8px;">
