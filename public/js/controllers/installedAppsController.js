@@ -10,6 +10,9 @@ function updateAppStatusUI(appCard, status, ingressUrl) {
         let statusClass = '';
         let displayStatus = '';
         
+        status = status.toUpperCase();
+        console.log('Updating UI for status:', status);
+        
         if (status === 'PENDING' || status === 'INIT') {
             statusClass = 'badge bg-warning text-dark';
             displayStatus = 'In Progress..';
@@ -21,7 +24,7 @@ function updateAppStatusUI(appCard, status, ingressUrl) {
                     </button>
                 ` : '';
             }
-        } else if (status === 'COMPLETED') {
+        } else if (status === 'COMPLETED' || status === 'DONE') {
             statusClass = 'badge bg-success text-white';
             displayStatus = 'Running';
             // Show both Open App (if ingress exists) and Remove App buttons
@@ -41,9 +44,9 @@ function updateAppStatusUI(appCard, status, ingressUrl) {
                     </button>
                 `;
             }
-        } else if (status === 'REMOVE') {
+        } else if (status === 'REMOVE' || status === 'REMOVING...') {
             statusClass = 'badge bg-secondary text-white';
-            displayStatus = 'remove';
+            displayStatus = status === 'REMOVING...' ? 'Removing...' : 'remove';
             // Hide all buttons
             if (buttonsContainer) {
                 buttonsContainer.innerHTML = '';
@@ -51,12 +54,18 @@ function updateAppStatusUI(appCard, status, ingressUrl) {
         } else {
             statusClass = 'badge bg-secondary text-white';
             displayStatus = status.toLowerCase();
+            // Hide all buttons for non-standard statuses
+            if (buttonsContainer) {
+                buttonsContainer.innerHTML = '';
+            }
         }
 
         statusBadge.className = `${statusClass} app-status`;
         statusBadge.style.borderRadius = '4px';
         statusBadge.style.padding = '4px 8px';
         statusBadge.textContent = displayStatus;
+        
+        console.log('UI updated:', { status, displayStatus, hasButtons: !!buttonsContainer?.innerHTML });
     }
 }
 
@@ -83,6 +92,11 @@ async function checkAppStatus(installedId, appElement) {
         }
 
         const data = await response.json();
+        console.log('Status check response:', {
+            installedId,
+            status: data.status,
+            details: data
+        });
         
         // Extract ingress URL from deployment details
         let ingressUrl = '';
@@ -99,27 +113,29 @@ async function checkAppStatus(installedId, appElement) {
         }
 
         const currentStatus = (data.status || '').toUpperCase();
+        console.log('Current status:', currentStatus);
 
         // Update UI based on status
         updateAppStatusUI(appElement, currentStatus, ingressUrl);
 
-        // Keep monitoring if status is pending
-        if (currentStatus === 'PENDING' || currentStatus === 'INIT') {
-            if (!refreshIntervals.has(installedId)) {
-                const intervalId = setInterval(() => checkAppStatus(installedId, appElement), 5000);
-                refreshIntervals.set(installedId, intervalId);
-            }
+        // Always clear existing interval if any
+        const existingInterval = refreshIntervals.get(installedId);
+        if (existingInterval) {
+            clearInterval(existingInterval);
+            refreshIntervals.delete(installedId);
+        }
+
+        // Keep monitoring if not in a final state
+        const finalStates = ['COMPLETED', 'DONE', 'REMOVE', 'FAILED'];
+        if (!finalStates.includes(currentStatus)) {
+            console.log('Status not final, setting up new monitoring interval for:', installedId);
+            const intervalId = setInterval(() => checkAppStatus(installedId, appElement), 2000);
+            refreshIntervals.set(installedId, intervalId);
         } else {
-            // Stop monitoring for other statuses
-            const intervalId = refreshIntervals.get(installedId);
-            if (intervalId) {
-                clearInterval(intervalId);
-                refreshIntervals.delete(installedId);
-            }
+            console.log('Final status reached for:', installedId, 'with status:', currentStatus);
         }
 
     } catch (error) {
-        // Silent error handling
         console.error('Error checking status:', error);
     }
 }
@@ -269,11 +285,22 @@ function initializeStatusChecking() {
     appCards.forEach(appCard => {
         const statusBadge = appCard.querySelector('.app-status');
         const status = statusBadge?.textContent.trim().toUpperCase();
-        if (statusBadge && (status === 'IN PROGRESS..' || status === 'INIT' || status === 'PENDING')) {
-            const installedId = appCard.dataset.installedId;
-            // Start checking status and store the interval
+        const installedId = appCard.dataset.installedId;
+        
+        // Start checking status for all apps that are not in final state
+        if (status !== 'COMPLETED' && status !== 'DONE' && status !== 'REMOVE' && status !== 'FAILED') {
+            // Clear any existing interval
+            const existingInterval = refreshIntervals.get(installedId);
+            if (existingInterval) {
+                clearInterval(existingInterval);
+                refreshIntervals.delete(installedId);
+            }
+
+            // Start immediate check and set up interval
             checkAppStatus(installedId, appCard);
-            console.log('Started monitoring for app:', installedId);
+            const intervalId = setInterval(() => checkAppStatus(installedId, appCard), 2000);
+            refreshIntervals.set(installedId, intervalId);
+            console.log('Started monitoring for app:', installedId, 'with status:', status);
         }
     });
 }
@@ -290,7 +317,10 @@ document.addEventListener('DOMContentLoaded', async function() {
         firebase.auth().onAuthStateChanged((user) => {
             if (user) {
                 console.log('User authenticated, initializing status checking...');
+                // Start immediate monitoring
                 initializeStatusChecking();
+                // Also set up periodic refresh of status checking
+                setInterval(initializeStatusChecking, 5000);
             } else {
                 console.log('User not authenticated');
                 window.location.href = '/';
