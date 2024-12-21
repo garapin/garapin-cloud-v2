@@ -31,53 +31,13 @@ async function fetchInstalledApps() {
         if (newContent) {
             const currentContent = document.querySelector('.row.row-cols-1.row-cols-md-2.row-cols-lg-3.row-cols-xl-4.g-4');
             if (currentContent) {
-                // Get current apps that are being removed or already removed
-                const currentApps = new Map();
-                currentContent.querySelectorAll('.card[data-installed-id]').forEach(card => {
-                    const id = card.dataset.installedId;
-                    const status = card.querySelector('.app-status')?.textContent;
-                    if (status === 'Removing...' || status === 'Removed') {
-                        currentApps.set(id, status);
-                    }
-                });
-
-                // Update content
-                currentContent.innerHTML = newContent.innerHTML;
-
-                // Restore states for apps being removed or already removed
-                currentApps.forEach((status, id) => {
-                    const card = currentContent.querySelector(`[data-installed-id="${id}"]`);
-                    if (card) {
-                        const statusBadge = card.querySelector('.app-status');
-                        const buttonsContainer = card.querySelector('.d-flex.gap-2.mt-2');
-                        
-                        if (statusBadge) {
-                            statusBadge.className = 'badge bg-secondary text-white app-status';
-                            statusBadge.style.borderRadius = '4px';
-                            statusBadge.style.padding = '4px 8px';
-                            statusBadge.textContent = status;
-                        }
-                        
-                        if (buttonsContainer) {
-                            buttonsContainer.innerHTML = '';
-                        }
-                    }
-                });
-
-                // Only initialize status checking for apps that need monitoring
-                const appsToMonitor = Array.from(currentContent.querySelectorAll('.card[data-installed-id]'))
-                    .filter(card => {
-                        const status = card.querySelector('.app-status')?.textContent;
-                        return status !== 'Running' && 
-                               status !== 'Removed' && 
-                               status !== 'Removing...' && 
-                               status !== 'Remove Failed' &&
-                               !currentApps.has(card.dataset.installedId);
-                    });
-
-                if (appsToMonitor.length > 0) {
-                    initializeStatusChecking(appsToMonitor);
+                // Skip refresh if any app is being removed
+                if (removingApps.size > 0) {
+                    return;
                 }
+
+                currentContent.innerHTML = newContent.innerHTML;
+                initializeStatusChecking();
             }
         }
     } catch (error) {
@@ -179,20 +139,15 @@ function updateAppStatusUI(appCard, status, ingressUrl) {
 async function checkAppStatus(installedId, appElement) {
     try {
         // Skip if element doesn't exist or app is being removed
-        if (!appElement || removingApps.has(installedId)) return;
+        if (!appElement || removingApps.has(installedId)) {
+            return;
+        }
 
-        // Get current status badge
         const statusBadge = appElement.querySelector('.app-status');
         if (!statusBadge) return;
 
         // Skip if currently removing
         if (statusBadge.textContent === 'Removing...') {
-            // Clear any existing interval
-            const intervalId = refreshIntervals.get(installedId);
-            if (intervalId) {
-                clearInterval(intervalId);
-                refreshIntervals.delete(installedId);
-            }
             return;
         }
 
@@ -211,8 +166,10 @@ async function checkAppStatus(installedId, appElement) {
 
         const data = await response.json();
         
-        // Skip if app is being removed (check again for race conditions)
-        if (removingApps.has(installedId) || statusBadge.textContent === 'Removing...') return;
+        // Skip if app is being removed
+        if (removingApps.has(installedId)) {
+            return;
+        }
 
         // Extract ingress URL
         let ingressUrl = '';
@@ -229,24 +186,9 @@ async function checkAppStatus(installedId, appElement) {
 
         const currentStatus = (data.status || '').toUpperCase();
 
-        // Only update UI if not removing and status is not 'remove'
-        if (!removingApps.has(installedId) && currentStatus !== 'REMOVE' && statusBadge.textContent !== 'Removing...') {
+        // Only update UI if not being removed
+        if (!removingApps.has(installedId) && statusBadge.textContent !== 'Removing...') {
             updateAppStatusUI(appElement, currentStatus, ingressUrl);
-        }
-
-        // Set up monitoring based on status
-        if (currentStatus === 'PENDING' || currentStatus === 'INIT') {
-            if (!refreshIntervals.has(installedId)) {
-                const intervalId = setInterval(() => checkAppStatus(installedId, appElement), 5000);
-                refreshIntervals.set(installedId, intervalId);
-            }
-        } else {
-            // Clear interval for all other statuses
-            const intervalId = refreshIntervals.get(installedId);
-            if (intervalId) {
-                clearInterval(intervalId);
-                refreshIntervals.delete(installedId);
-            }
         }
 
     } catch (error) {
@@ -261,39 +203,46 @@ async function removeApp(installedId) {
     }
 
     const appCard = document.querySelector(`[data-installed-id="${installedId}"]`);
-    if (!appCard) return;
+    if (!appCard) {
+        console.error('App card not found for ID:', installedId);
+        return;
+    }
 
-    // Add to removing set
+    // Add to removing set immediately
     removingApps.add(installedId);
 
-    // Clear any existing interval immediately
+    // Clear any existing interval
     const intervalId = refreshIntervals.get(installedId);
     if (intervalId) {
         clearInterval(intervalId);
         refreshIntervals.delete(installedId);
     }
 
+    // Get references to UI elements
+    const statusBadge = appCard.querySelector('.app-status');
+    const buttonsContainer = appCard.querySelector('.d-flex.gap-2.mt-2');
+
+    // Set status to Removing... immediately
+    if (statusBadge) {
+        statusBadge.className = 'badge bg-warning text-dark app-status';
+        statusBadge.style.borderRadius = '4px';
+        statusBadge.style.padding = '4px 8px';
+        statusBadge.textContent = 'Removing...';
+    }
+
+    // Clear buttons immediately
+    if (buttonsContainer) {
+        buttonsContainer.innerHTML = '';
+    }
+
     try {
         const user = firebase.auth().currentUser;
-        if (!user) return;
+        if (!user) {
+            throw new Error('User not authenticated');
+        }
 
         const token = await user.getIdToken();
 
-        // Set status to Removing... before API call
-        const statusBadge = appCard.querySelector('.app-status');
-        if (statusBadge) {
-            statusBadge.className = 'badge bg-warning text-dark app-status';
-            statusBadge.style.borderRadius = '4px';
-            statusBadge.style.padding = '4px 8px';
-            statusBadge.textContent = 'Removing...';
-        }
-
-        // Clear buttons immediately
-        const buttonsContainer = appCard.querySelector('.d-flex.gap-2.mt-2');
-        if (buttonsContainer) {
-            buttonsContainer.innerHTML = '';
-        }
-        
         // Get installation details
         const response = await fetch(`/store/installation-status/${installedId}`, {
             headers: {
@@ -302,7 +251,7 @@ async function removeApp(installedId) {
         });
 
         if (!response.ok) {
-            throw new Error('Failed to fetch installation details');
+            throw new Error(`Failed to fetch installation details: ${response.status} ${response.statusText}`);
         }
 
         const data = await response.json();
@@ -336,10 +285,10 @@ async function removeApp(installedId) {
 
         if (!deleteResponse.ok) {
             const responseData = await deleteResponse.json();
-            throw new Error(responseData.error || responseData.message || 'Failed to remove deployment');
+            throw new Error(responseData.error || responseData.message || `Failed to remove deployment: ${deleteResponse.status} ${deleteResponse.statusText}`);
         }
 
-        // Update UI to Removed status immediately after successful DELETE_DEPLOYMENT_API_URL call
+        // Update UI to Removed status
         if (statusBadge) {
             statusBadge.className = 'badge bg-secondary text-white app-status';
             statusBadge.textContent = 'Removed';
@@ -355,21 +304,23 @@ async function removeApp(installedId) {
         });
 
         if (!updateResponse.ok) {
-            throw new Error('Failed to update installation status');
+            throw new Error(`Failed to update installation status: ${updateResponse.status} ${updateResponse.statusText}`);
         }
 
+        // Keep in removingApps set to prevent status changes
+
     } catch (error) {
+        console.error('Error removing app:', error);
+        
         // Remove from removing set only on error
         removingApps.delete(installedId);
         
         // On error, update UI and re-enable button
-        const statusBadge = appCard.querySelector('.app-status');
         if (statusBadge) {
             statusBadge.className = 'badge bg-danger text-white app-status';
             statusBadge.textContent = 'Remove Failed';
         }
 
-        const buttonsContainer = appCard.querySelector('.d-flex.gap-2.mt-2');
         if (buttonsContainer) {
             buttonsContainer.innerHTML = `
                 <button class="btn btn-danger btn-sm" 
@@ -379,7 +330,8 @@ async function removeApp(installedId) {
                 </button>
             `;
         }
-        alert('Failed to remove application: ' + error.message);
+
+        alert(`Failed to remove application: ${error.message}`);
     }
 }
 
