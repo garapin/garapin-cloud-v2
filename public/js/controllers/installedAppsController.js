@@ -4,6 +4,11 @@ const removingApps = new Set();
 
 // Function to fetch installed apps
 async function fetchInstalledApps() {
+    // Skip refresh completely if any app is being removed
+    if (removingApps.size > 0) {
+        return;
+    }
+
     const user = firebase.auth().currentUser;
     if (!user) {
         return;
@@ -31,11 +36,6 @@ async function fetchInstalledApps() {
         if (newContent) {
             const currentContent = document.querySelector('.row.row-cols-1.row-cols-md-2.row-cols-lg-3.row-cols-xl-4.g-4');
             if (currentContent) {
-                // Skip refresh if any app is being removed
-                if (removingApps.size > 0) {
-                    return;
-                }
-
                 currentContent.innerHTML = newContent.innerHTML;
                 initializeStatusChecking();
             }
@@ -137,17 +137,20 @@ function updateAppStatusUI(appCard, status, ingressUrl) {
 
 // Function to check app status
 async function checkAppStatus(installedId, appElement) {
+    // Skip if app is being removed
+    if (removingApps.has(installedId)) {
+        return;
+    }
+
     try {
-        // Skip if element doesn't exist or app is being removed
-        if (!appElement || removingApps.has(installedId)) {
-            return;
-        }
+        if (!appElement) return;
 
         const statusBadge = appElement.querySelector('.app-status');
         if (!statusBadge) return;
 
-        // Skip if currently removing
-        if (statusBadge.textContent === 'Removing...') {
+        // Skip if currently removing or removed
+        const currentStatus = statusBadge.textContent;
+        if (currentStatus === 'Removing...' || currentStatus === 'Removed') {
             return;
         }
 
@@ -166,7 +169,7 @@ async function checkAppStatus(installedId, appElement) {
 
         const data = await response.json();
         
-        // Skip if app is being removed
+        // Double check if app is still not being removed
         if (removingApps.has(installedId)) {
             return;
         }
@@ -184,11 +187,11 @@ async function checkAppStatus(installedId, appElement) {
             }
         }
 
-        const currentStatus = (data.status || '').toUpperCase();
-
-        // Only update UI if not being removed
-        if (!removingApps.has(installedId) && statusBadge.textContent !== 'Removing...') {
-            updateAppStatusUI(appElement, currentStatus, ingressUrl);
+        // Only update if not being removed and not in a removal state
+        if (!removingApps.has(installedId) && 
+            statusBadge.textContent !== 'Removing...' && 
+            statusBadge.textContent !== 'Removed') {
+            updateAppStatusUI(appElement, data.status || '', ingressUrl);
         }
 
     } catch (error) {
@@ -201,6 +204,9 @@ async function removeApp(installedId) {
     if (!confirm('WARNING: This Application will be DELETED, and All Data will be Destroyed.\n\nAre you sure you want to proceed?')) {
         return;
     }
+
+    // Stop all periodic refreshes immediately
+    clearInterval(window.fetchAppsInterval);
 
     const appCard = document.querySelector(`[data-installed-id="${installedId}"]`);
     if (!appCard) {
@@ -222,20 +228,20 @@ async function removeApp(installedId) {
     const statusBadge = appCard.querySelector('.app-status');
     const buttonsContainer = appCard.querySelector('.d-flex.gap-2.mt-2');
 
-    // Set status to Removing... immediately
-    if (statusBadge) {
-        statusBadge.className = 'badge bg-warning text-dark app-status';
-        statusBadge.style.borderRadius = '4px';
-        statusBadge.style.padding = '4px 8px';
-        statusBadge.textContent = 'Removing...';
-    }
-
-    // Clear buttons immediately
-    if (buttonsContainer) {
-        buttonsContainer.innerHTML = '';
-    }
-
     try {
+        // Set status to Removing... immediately
+        if (statusBadge) {
+            statusBadge.className = 'badge bg-warning text-dark app-status';
+            statusBadge.style.borderRadius = '4px';
+            statusBadge.style.padding = '4px 8px';
+            statusBadge.textContent = 'Removing...';
+        }
+
+        // Clear buttons immediately
+        if (buttonsContainer) {
+            buttonsContainer.innerHTML = '';
+        }
+
         const user = firebase.auth().currentUser;
         if (!user) {
             throw new Error('User not authenticated');
@@ -273,6 +279,8 @@ async function removeApp(installedId) {
             appPersistentVolumeClaim: pvc?.resource?.name || ''
         };
 
+        console.log('Sending removal request:', removalBody);
+
         // Call delete deployment API
         const deleteResponse = await fetch('/store/proxy-delete-deployment', {
             method: 'POST',
@@ -283,9 +291,11 @@ async function removeApp(installedId) {
             body: JSON.stringify(removalBody)
         });
 
+        const deleteResponseData = await deleteResponse.json();
+        console.log('Delete deployment response:', deleteResponseData);
+
         if (!deleteResponse.ok) {
-            const responseData = await deleteResponse.json();
-            throw new Error(responseData.error || responseData.message || `Failed to remove deployment: ${deleteResponse.status} ${deleteResponse.statusText}`);
+            throw new Error(deleteResponseData.error || deleteResponseData.message || `Failed to remove deployment: ${deleteResponse.status}`);
         }
 
         // Update UI to Removed status
@@ -304,10 +314,11 @@ async function removeApp(installedId) {
         });
 
         if (!updateResponse.ok) {
-            throw new Error(`Failed to update installation status: ${updateResponse.status} ${updateResponse.statusText}`);
+            throw new Error(`Failed to update installation status: ${updateResponse.status}`);
         }
 
-        // Keep in removingApps set to prevent status changes
+        // Restart periodic refresh after successful removal
+        window.fetchAppsInterval = setInterval(fetchInstalledApps, 30000);
 
     } catch (error) {
         console.error('Error removing app:', error);
@@ -330,6 +341,9 @@ async function removeApp(installedId) {
                 </button>
             `;
         }
+
+        // Restart periodic refresh after error
+        window.fetchAppsInterval = setInterval(fetchInstalledApps, 30000);
 
         alert(`Failed to remove application: ${error.message}`);
     }
@@ -378,7 +392,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                 // Initial fetch of installed apps
                 await fetchInstalledApps();
                 // Set up periodic refresh with longer interval
-                setInterval(fetchInstalledApps, 30000); // Changed to 30 seconds
+                window.fetchAppsInterval = setInterval(fetchInstalledApps, 30000);
             } else {
                 window.location.href = '/';
             }
