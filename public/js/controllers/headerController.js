@@ -30,28 +30,24 @@ window.handleLogout = async () => {
 
 // Global function to update UI with user data
 window.updateUserUI = (user) => {
-    console.log('Raw user data received:', user);
-    
-    const userMenuButton = document.getElementById('userMenuButton');
-    const loginButton = document.getElementById('loginButton');
-    const userDropdown = document.getElementById('userDropdown');
-    const userNameDisplay = document.getElementById('userName');
-    const userPhotoContainer = document.getElementById('userPhotoContainer');
-    
     if (!user) {
+        const loginButton = document.getElementById('loginButton');
         if (loginButton) loginButton.style.display = 'block';
+        
+        const userMenuButton = document.querySelector('.dropdown');
         if (userMenuButton) userMenuButton.style.display = 'none';
-        if (userDropdown) userDropdown.style.display = 'none';
         return;
     }
 
     // Handle user name display
+    const userNameDisplay = document.getElementById('userName');
     if (userNameDisplay) {
         const displayName = user.displayName || user.name || user.email?.split('@')[0] || 'User';
         userNameDisplay.textContent = displayName;
     }
 
     // Handle profile image
+    const userPhotoContainer = document.getElementById('userPhotoContainer');
     if (userPhotoContainer) {
         const showInitialsFallback = () => {
             const initials = (user.displayName || user.name || user.email || 'U')
@@ -64,20 +60,13 @@ window.updateUserUI = (user) => {
                 </div>`;
         };
 
-        // Get photo URL and check if it's already loaded
         const photoURL = user.photoURL || user.photo_url;
-        const existingImg = userPhotoContainer.querySelector('img');
-        if (existingImg && existingImg.src === photoURL) {
-            return; // Image already loaded correctly
-        }
-
         if (!photoURL) {
             showInitialsFallback();
             return;
         }
 
-        // Create and set up image
-        const img = document.createElement('img');
+        const img = new Image();
         img.className = 'rounded-circle';
         img.alt = 'Profile';
         img.style.width = '32px';
@@ -96,11 +85,12 @@ window.updateUserUI = (user) => {
             showInitialsFallback();
         };
 
-        // Set the source last
         img.src = photoURL;
     }
 
     // Update visibility
+    const loginButton = document.getElementById('loginButton');
+    const userMenuButton = document.querySelector('.dropdown');
     if (loginButton) loginButton.style.display = 'none';
     if (userMenuButton) userMenuButton.style.display = 'block';
 };
@@ -113,13 +103,8 @@ window.handleAuthStateChange = async (user) => {
         window.isAuthenticating = true;
         
         if (user) {
-            let token;
-            try {
-                token = await user.getIdToken(false);
-            } catch (tokenError) {
-                console.warn('Error getting token, trying force refresh:', tokenError);
-                token = await user.getIdToken(true);
-            }
+            const token = await user.getIdToken(true);
+            localStorage.setItem('authToken', token);
 
             // First update UI with Firebase data
             updateUserUI({
@@ -128,15 +113,12 @@ window.handleAuthStateChange = async (user) => {
                 photoURL: user.photoURL
             });
 
-            // Send data in the exact format the server expects
             const userData = {
                 name: user.displayName,
                 email: user.email,
                 provider_uid: user.uid,
                 photoURL: user.photoURL
             };
-
-            console.log('Sending auth data:', userData);
 
             const response = await fetch('/auth/user', {
                 method: 'POST',
@@ -149,27 +131,10 @@ window.handleAuthStateChange = async (user) => {
 
             if (response.ok) {
                 const serverResponse = await response.json();
-                console.log('Received user data from server:', serverResponse);
-                
                 if (serverResponse.user) {
-                    // Update UI with the data we sent
-                    updateUserUI({
-                        displayName: userData.name,
-                        email: userData.email,
-                        photoURL: userData.photoURL
-                    });
-                    
-                    // Store data
                     window.currentUser = serverResponse.user;
-                    localStorage.setItem('authToken', token);
+                    updateUserUI(serverResponse.user);
                 }
-            } else {
-                console.error('Failed to update user on server:', await response.text());
-                updateUserUI({
-                    displayName: user.displayName,
-                    email: user.email,
-                    photoURL: user.photoURL
-                });
             }
         } else {
             window.currentUser = null;
@@ -178,27 +143,15 @@ window.handleAuthStateChange = async (user) => {
         }
     } catch (error) {
         console.error('Auth handler error:', error);
-        if (user) {
-            updateUserUI({
-                displayName: user.displayName,
-                email: user.email,
-                photoURL: user.photoURL
-            });
-        }
     } finally {
         window.isAuthenticating = false;
     }
 };
 
 document.addEventListener('DOMContentLoaded', async () => {
-    // Prevent multiple initializations
-    if (window.authInitialized) {
-        return;
-    }
+    if (window.authInitialized) return;
     window.authInitialized = true;
 
-    console.log('HeaderController initializing...');
-    
     try {
         const firebaseConfig = JSON.parse(document.querySelector('[data-firebase-config]').dataset.firebaseConfig);
         if (!firebase.apps?.length) {
@@ -206,23 +159,18 @@ document.addEventListener('DOMContentLoaded', async () => {
             await firebase.auth().setPersistence(firebase.auth.Auth.Persistence.LOCAL);
         }
 
-        // Single auth state listener
+        // Set up auth state listener
         firebase.auth().onAuthStateChanged(async (user) => {
             if (user) {
-                try {
-                    console.log('Auth state changed - user logged in:', user.displayName);
-                    await window.handleAuthStateChange(user);
-                } catch (error) {
-                    console.error('Error handling auth state change:', error);
-                    updateUserUI(user);
-                }
+                console.log('Auth state changed - user logged in:', user.email);
+                await window.handleAuthStateChange(user);
             } else {
                 console.log('Auth state changed - user logged out');
                 updateUserUI(null);
             }
         });
 
-        // Add logout button click handler
+        // Set up logout button
         const logoutButton = document.getElementById('logoutButton');
         if (logoutButton) {
             logoutButton.addEventListener('click', (e) => {

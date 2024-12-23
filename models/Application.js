@@ -59,12 +59,12 @@ const applicationSchema = new mongoose.Schema({
     software_included: [String],
     base_image: [{
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'base_images',
+        ref: 'BaseImage',
         required: true
     }],
     main_base_image: {
         type: mongoose.Schema.Types.ObjectId,
-        ref: 'base_images'
+        ref: 'BaseImage'
     },
     publisher: {
         type: mongoose.Types.ObjectId,

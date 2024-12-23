@@ -9,13 +9,37 @@ const baseImageSchema = new mongoose.Schema({
         type: String,
         required: true
     },
+    appServices: {
+        type: String,
+        required: true
+    },
+    ingressServices: {
+        type: String,
+        required: true
+    },
     base_image: {
         type: String,
         required: true
     },
-    appServices: {
+    isDatabase: {
+        type: Boolean,
+        default: false
+    },
+    thumbnailURL: {
         type: String,
         required: true
+    },
+    description: {
+        type: String,
+        required: true
+    },
+    version: {
+        type: String,
+        required: true
+    },
+    database_server: {
+        type: String,
+        default: null
     }
 }, {
     timestamps: {
@@ -24,4 +48,4 @@ const baseImageSchema = new mongoose.Schema({
     }
 });
 
-module.exports = mongoose.model('base_images', baseImageSchema); 
+module.exports = mongoose.model('BaseImage', baseImageSchema, 'base_images'); 

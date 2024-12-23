@@ -19,6 +19,7 @@ const Application = require('./models/Application');
 const categoryController = require('./controllers/categoryController');
 const Category = require('./models/Category');
 const InstalledApp = require('./models/InstalledApp');
+const BaseImage = require('./models/BaseImage');
 
 const app = express();
 
@@ -35,13 +36,17 @@ app.use((req, res, next) => {
         "script-src 'self' 'unsafe-inline' 'unsafe-eval' " +
         "https://www.gstatic.com https://apis.google.com " +
         "https://*.firebaseio.com https://*.firebaseapp.com " +
-        "https://www.googleapis.com https://cdn.jsdelivr.net; " +
-        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; " +
-        "font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net; " +
-        "img-src 'self' data: https: blob: https://lh3.googleusercontent.com https://*.googleusercontent.com; " +
+        "https://www.googleapis.com https://cdn.jsdelivr.net " +
+        "https://cdn.tiny.cloud; " +
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com " +
+        "https://cdn.jsdelivr.net https://cdn.tiny.cloud; " +
+        "font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net https://cdn.tiny.cloud; " +
+        "img-src 'self' data: https: blob: https://lh3.googleusercontent.com " +
+        "https://*.googleusercontent.com https://cdn.tiny.cloud; " +
         "connect-src 'self' https://*.firebaseio.com https://www.googleapis.com " +
         "https://securetoken.googleapis.com https://identitytoolkit.googleapis.com " +
-        "wss://*.firebaseio.com https://cdn.jsdelivr.net; " +
+        "wss://*.firebaseio.com https://cdn.jsdelivr.net https://n8n-service.garapin.cloud " +
+        "https://registry.hub.docker.com https://cdn.tiny.cloud; " +
         "frame-src 'self' https://console.garapin.cloud https://*.firebaseio.com " +
         "https://*.firebaseapp.com https://*.firebase.com https://accounts.google.com; " +
         "object-src 'none';"
@@ -480,6 +485,110 @@ app.get('/store', async (req, res) => {
     }
 });
 
+// Base Images Route
+app.get('/base-images', async (req, res) => {
+    try {
+        console.log('Fetching base images...');
+        const baseImages = await BaseImage.find()
+            .sort({ base_image: 1 }); // 1 for ascending order
+
+        console.log('Found base images:', baseImages);
+
+        res.render('base-images', {
+            firebaseConfig,
+            baseImages,
+            user: req.user,
+            pageTitle: 'Base Images',
+            currentPage: 'base-images',
+            createBaseImageAIURL: process.env.CREATE_BASE_IMAGE_AI_URL
+        });
+    } catch (error) {
+        console.error('Error loading base images:', error);
+        res.status(500).send('Error loading base images');
+    }
+});
+
+// Docker Hub Validation Endpoint
+app.get('/api/docker-hub/validate/:image/:tag', async (req, res) => {
+    try {
+        const { image, tag } = req.params;
+        
+        // List of common organizations to check
+        const organizations = [
+            'library',  // Official images
+            '',         // Default namespace
+            'bitnami'   // Bitnami images
+        ];
+
+        // Try each organization
+        for (const org of organizations) {
+            const prefix = org ? `${org}/` : '';
+            const url = `https://hub.docker.com/v2/repositories/${prefix}${image}/tags/${tag}`;
+            
+            try {
+                console.log('Trying URL:', url);
+                const response = await fetch(url, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json'
+                    },
+                    timeout: 5000
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    // If we found the image in any organization, consider it valid
+                    return res.json({
+                        name: tag,
+                        full_name: `${prefix}${image}`,
+                        images: [{
+                            architecture: 'arm64',
+                            variant: 'v8'
+                        }]
+                    });
+                }
+            } catch (fetchError) {
+                console.error(`Fetch error for ${url}:`, fetchError);
+                // Continue to next organization if there's an error
+                continue;
+            }
+        }
+
+        // If we get here, try searching in Docker Hub
+        const searchUrl = `https://hub.docker.com/v2/repositories/${image}`;
+        try {
+            const searchResponse = await fetch(searchUrl, {
+                method: 'GET',
+                headers: {
+                    'Accept': 'application/json'
+                },
+                timeout: 5000
+            });
+
+            if (searchResponse.ok) {
+                // Image exists in its own namespace
+                return res.json({
+                    name: tag,
+                    full_name: image,
+                    images: [{
+                        architecture: 'arm64',
+                        variant: 'v8'
+                    }]
+                });
+            }
+        } catch (searchError) {
+            console.error('Search error:', searchError);
+        }
+
+        // If we get here, the image was not found anywhere
+        return res.status(404).json({ error: 'Image not found' });
+
+    } catch (error) {
+        console.error('Docker Hub validation error:', error);
+        res.status(500).json({ error: 'Failed to validate Docker image' });
+    }
+});
+
 app.get('/api/categories', categoryController.getAllCategories);
 app.post('/api/categories', categoryController.createCategory);
 app.put('/api/categories/:id', categoryController.updateCategory);
@@ -660,18 +769,23 @@ app.get(['/publish', '/publish/:id'], async (req, res) => {
         let application = null;
 
         if (isEdit) {
-            application = await Application.findOne({ _id: req.params.id });
+            application = await Application.findOne({ _id: req.params.id }).populate('base_image main_base_image');
             if (!application) {
                 return res.status(404).send('Application not found');
             }
         }
 
+        // Fetch all available base images
+        const baseImages = await BaseImage.find().sort({ base_image: 1, version: -1 });
+
         res.render('publish', {
             firebaseConfig,
             application, // Will be null for new publish
+            baseImages, // Pass base images to the template
             isEdit,     // Flag to indicate if this is an edit
             user: req.user,
-            pageTitle: isEdit ? 'Edit Application' : 'Publish Application'
+            pageTitle: isEdit ? 'Edit Application' : 'Publish Application',
+            currentPage: 'publish'
         });
     } catch (error) {
         console.error('Error:', error);
