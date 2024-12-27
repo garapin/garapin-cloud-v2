@@ -131,7 +131,8 @@ async function buildImage() {
             appName: baseImageName.substring(0, 4),
             base_image_name: baseImageName,
             version: versionValue,
-            StorageSize: parseInt(storageSize)
+            StorageSize: parseInt(storageSize),
+            user_id: firebase.auth().currentUser.uid
         };
 
         const response = await fetch(createUrl, {

@@ -488,16 +488,34 @@ app.get('/store', async (req, res) => {
 // Base Images Route
 app.get('/base-images', async (req, res) => {
     try {
+        // Get token from header
+        const token = req.headers.authorization?.split('Bearer ')[1];
+        let userData = null;
+
+        if (token) {
+            try {
+                const decodedToken = await admin.auth().verifyIdToken(token);
+                userData = await User.findOne({ provider_uid: decodedToken.uid });
+                console.log('Found user data:', userData);
+            } catch (error) {
+                console.error('Error verifying token:', error);
+            }
+        }
+
         console.log('Fetching base images...');
         const baseImages = await BaseImage.find()
             .sort({ base_image: 1 }); // 1 for ascending order
 
-        console.log('Found base images:', baseImages);
+        console.log('Current user in route:', {
+            id: userData?._id,
+            provider_uid: userData?.provider_uid,
+            email: userData?.email
+        });
 
         res.render('base-images', {
             firebaseConfig,
             baseImages,
-            user: req.user,
+            user: userData,
             pageTitle: 'Base Images',
             currentPage: 'base-images',
             createBaseImageAIURL: process.env.CREATE_BASE_IMAGE_AI_URL

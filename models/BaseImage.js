@@ -40,6 +40,10 @@ const baseImageSchema = new mongoose.Schema({
     database_server: {
         type: String,
         default: null
+    },
+    user_id: {
+        type: String,
+        required: true
     }
 }, {
     timestamps: {

@@ -23,6 +23,56 @@
         }
     </style>
     <%- include('partials/firebase-sdk') %>
+    <script>
+        document.addEventListener('DOMContentLoaded', async function() {
+            const firebaseConfig = JSON.parse(document.querySelector('[data-firebase-config]').dataset.firebaseConfig);
+            if (!firebase.apps?.length) {
+                firebase.initializeApp(firebaseConfig);
+            }
+
+            // Get current user and token
+            const user = firebase.auth().currentUser;
+            if (!user) {
+                // Wait for auth state to be ready
+                firebase.auth().onAuthStateChanged(async function(user) {
+                    if (user) {
+                        const token = await user.getIdToken();
+                        // Fetch the page with auth header
+                        const response = await fetch(window.location.pathname, {
+                            headers: {
+                                'Authorization': `Bearer ${token}`
+                            }
+                        });
+                        if (response.ok) {
+                            const html = await response.text();
+                            // Create a temporary container
+                            const temp = document.createElement('div');
+                            temp.innerHTML = html;
+                            
+                            // Only update the baseImagesContainer content
+                            const newContent = temp.querySelector('#baseImagesContainer');
+                            const currentContent = document.querySelector('#baseImagesContainer');
+                            if (newContent && currentContent) {
+                                currentContent.innerHTML = newContent.innerHTML;
+                            }
+
+                            // Initialize tooltips for the new content
+                            var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+                            var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+                                return new bootstrap.Tooltip(tooltipTriggerEl);
+                            });
+                        }
+                    }
+                });
+            }
+        });
+
+        // Initialize tooltips after page load
+        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl);
+        });
+    </script>
 </head>
 <body>
     <div class="container-fluid" data-firebase-config='<%= JSON.stringify(firebaseConfig) %>'>
@@ -109,6 +159,22 @@
                                                     </span>
                                                 <% } %>
                                             </div>
+                                            <% 
+                                                console.log('User:', user ? user.provider_uid : 'No user');
+                                                console.log('Image user_id:', image.user_id);
+                                                if (user && user.provider_uid === image.user_id) { 
+                                            %>
+                                                <div class="mt-2">
+                                                    <button class="btn btn-sm" 
+                                                        style="background-color: white; color: #6C7DFF; border: 1px solid #6C7DFF; transition: all 0.3s;"
+                                                        onmouseover="this.style.backgroundColor='#6C7DFF'; this.style.color='white';"
+                                                        onmouseout="this.style.backgroundColor='white'; this.style.color='#6C7DFF';"
+                                                        onclick="redeployImage('<%= image.base_image %>')">
+                                                        <i class="bi bi-arrow-clockwise me-1"></i>
+                                                        Redeploy
+                                                    </button>
+                                                </div>
+                                            <% } %>
                                         </div>
                                     </div>
                                 </div>
