@@ -236,8 +236,8 @@ async function redeployImage(baseImageName) {
                         <div class="spinner-border text-primary mb-3" role="status">
                             <span class="visually-hidden">Loading...</span>
                         </div>
-                        <h5>Redeploying Base Image</h5>
-                        <p class="mb-0">Please wait while we redeploy your base image. This may take a few minutes.</p>
+                        <h5>Rebuilding Base Image</h5>
+                        <p class="mb-0">Please wait while we rebuild your base image. This may take a few minutes.</p>
                     </div>
                 </div>
             </div>
@@ -254,6 +254,10 @@ async function redeployImage(baseImageName) {
         // Get the base image data
         const baseImage = await fetch(`/api/base-images/${baseImageName}`).then(r => r.json());
         if (!baseImage) throw new Error('Base image not found');
+
+        // Extract storage size from storageImages configuration
+        const storageImages = JSON.parse(baseImage.storageImages);
+        const storageSize = storageImages.spec.resources.requests.storage;
 
         // Delete the existing base image
         const deleteResponse = await fetch(`/api/base-images/${baseImage._id}`, {
@@ -283,7 +287,7 @@ async function redeployImage(baseImageName) {
             base_image_name: baseImage.base_image,
             imageSource: imageSource,
             version: baseImage.version,
-            StorageSize: "1Gi",
+            StorageSize: storageSize,
             user_id: firebase.auth().currentUser.uid
         };
 

@@ -171,7 +171,7 @@
                                                         onmouseout="this.style.backgroundColor='white'; this.style.color='#6C7DFF';"
                                                         onclick="redeployImage('<%= image.base_image %>')">
                                                         <i class="bi bi-arrow-clockwise me-1"></i>
-                                                        Redeploy
+                                                        Rebuild
                                                     </button>
                                                 </div>
                                             <% } %>
@@ -181,10 +181,12 @@
                             </div>
                         <% }); %>
                     <% } else { %>
-                        <div class="col-12">
-                            <div class="alert alert-info text-center">
-                                <i class="bi bi-info-circle me-2"></i>
-                                No base images available at the moment.
+                        <div style="width: 100%; margin: 1rem 0;">
+                            <div class="alert alert-info d-flex align-items-center justify-content-center py-3" style="min-height: 100px;">
+                                <div class="text-center">
+                                    <i class="bi bi-info-circle me-2 fs-4"></i>
+                                    <p class="fs-5 mb-0">No base images available at the moment.</p>
+                                </div>
                             </div>
                         </div>
                     <% } %>
