@@ -223,4 +223,96 @@ style.textContent = `
     }
 `;
 document.head.appendChild(style);
+
+async function redeployImage(baseImageName) {
+    try {
+        // Create modal element properly
+        const modalElement = document.createElement('div');
+        modalElement.className = 'modal fade';
+        modalElement.innerHTML = `
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <div class="modal-body text-center p-4">
+                        <div class="spinner-border text-primary mb-3" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <h5>Redeploying Base Image</h5>
+                        <p class="mb-0">Please wait while we redeploy your base image. This may take a few minutes.</p>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modalElement);
+        
+        // Create and show modal
+        const modal = new bootstrap.Modal(modalElement);
+        modalElement.addEventListener('hide.bs.modal', event => {
+            event.preventDefault(); // Prevent modal from being closed
+        });
+        modal.show();
+
+        // Get the base image data
+        const baseImage = await fetch(`/api/base-images/${baseImageName}`).then(r => r.json());
+        if (!baseImage) throw new Error('Base image not found');
+
+        // Delete the existing base image
+        const deleteResponse = await fetch(`/api/base-images/${baseImage._id}`, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${await firebase.auth().currentUser.getIdToken()}`
+            }
+        });
+        if (!deleteResponse.ok) throw new Error('Failed to delete base image');
+
+        // Get the create URL from the modal's data attribute
+        const createUrl = document.getElementById('aiBuilderModal').dataset.createUrl;
+
+        // Extract image source from version
+        let imageSource = baseImage.version;
+        if (imageSource.includes(':')) {
+            imageSource = imageSource.split(':')[0];
+            // Add 'library/' prefix for official images
+            if (!imageSource.includes('/')) {
+                imageSource = 'library/' + imageSource;
+            }
+        }
+
+        // Prepare request body for recreation
+        const requestBody = {
+            appName: baseImage.base_image.substring(0, 4),
+            base_image_name: baseImage.base_image,
+            imageSource: imageSource,
+            version: baseImage.version,
+            StorageSize: "1Gi",
+            user_id: firebase.auth().currentUser.uid
+        };
+
+        // Create new base image
+        const response = await fetch(createUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'garapin-cloud-frontend': '881b5b63f7ad48def15bee384e3af18eec73f46b96aea65bd79a7c975c92c928'
+            },
+            body: JSON.stringify(requestBody)
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || 'Failed to create new base image');
+        }
+
+        // Show success message
+        showToast('Base image redeployment initiated successfully', 'success');
+
+        // Refresh the page after a short delay
+        setTimeout(() => {
+            window.location.reload();
+        }, 1500);
+
+    } catch (error) {
+        console.error('Error redeploying base image:', error);
+        showToast('Failed to redeploy base image: ' + error.message, 'error');
+    }
+}
  

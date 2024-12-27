@@ -1222,6 +1222,55 @@ app.get('/api/applications/status/:installedId', async (req, res) => {
     }
 });
 
+// Get base image by name
+app.get('/api/base-images/:name', async (req, res) => {
+    try {
+        const baseImage = await BaseImage.findOne({ base_image: req.params.name });
+        if (!baseImage) {
+            return res.status(404).json({ error: 'Base image not found' });
+        }
+        res.json(baseImage);
+    } catch (error) {
+        console.error('Error fetching base image:', error);
+        res.status(500).json({ error: 'Failed to fetch base image' });
+    }
+});
+
+// Delete base image by ID
+app.delete('/api/base-images/:id', async (req, res) => {
+    try {
+        // Get token from header
+        const token = req.headers.authorization?.split('Bearer ')[1];
+        if (!token) {
+            return res.status(401).json({ error: 'No token provided' });
+        }
+
+        // Verify token and get user
+        const decodedToken = await admin.auth().verifyIdToken(token);
+        const user = await User.findOne({ provider_uid: decodedToken.uid });
+        if (!user) {
+            return res.status(401).json({ error: 'User not found' });
+        }
+
+        // Find and verify base image ownership
+        const baseImage = await BaseImage.findById(req.params.id);
+        if (!baseImage) {
+            return res.status(404).json({ error: 'Base image not found' });
+        }
+
+        if (baseImage.user_id !== user.provider_uid) {
+            return res.status(403).json({ error: 'Not authorized to delete this base image' });
+        }
+
+        // Delete the base image
+        await BaseImage.findByIdAndDelete(req.params.id);
+        res.json({ message: 'Base image deleted successfully' });
+    } catch (error) {
+        console.error('Error deleting base image:', error);
+        res.status(500).json({ error: 'Failed to delete base image' });
+    }
+});
+
 const PORT = 8000;
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
