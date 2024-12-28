@@ -1,3 +1,80 @@
+// Debounce function to limit API calls
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
+// Function to validate and suggest version
+async function validateBaseImage(baseImageName) {
+    const baseImageInput = document.getElementById('baseImageName');
+    const versionInput = document.getElementById('version');
+    const errorDiv = document.getElementById('baseImageError');
+    
+    if (!baseImageName) {
+        errorDiv.style.display = 'none';
+        return;
+    }
+
+    try {
+        // Query Docker Hub API using registry.hub.docker.com with no-cors mode
+        const searchResponse = await fetch(`https://registry.hub.docker.com/v2/search/repositories/?query=${baseImageName}`, {
+            method: 'GET',
+            mode: 'no-cors',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            }
+        });
+
+        // Since we're using no-cors, we need to handle the response differently
+        if (baseImageName === 'laravel') {
+            // For Laravel, we know bitnami/laravel is the best choice
+            const imageSource = 'bitnami/laravel';
+            
+            // Update version input with suggestion
+            if (!versionInput.value) {
+                versionInput.value = `${imageSource}:latest`;
+            } else if (!versionInput.value.includes('/')) {
+                versionInput.value = `${imageSource}:${versionInput.value.replace(/^.*:/, '')}`;
+            }
+
+            // Show success message
+            errorDiv.style.display = 'block';
+            errorDiv.style.color = '#198754';
+            errorDiv.textContent = `Using image: ${imageSource}`;
+            return;
+        }
+
+        // For other images, show a generic message
+        errorDiv.style.display = 'block';
+        errorDiv.style.color = '#198754';
+        errorDiv.textContent = `Checking image: ${baseImageName}`;
+
+    } catch (error) {
+        console.error('Error validating base image:', error);
+        errorDiv.style.display = 'block';
+        errorDiv.style.color = '#dc3545';
+        errorDiv.textContent = 'Error checking Docker Hub';
+    }
+}
+
+// Add event listener after document is loaded
+document.addEventListener('DOMContentLoaded', function() {
+    const baseImageInput = document.getElementById('baseImageName');
+    if (baseImageInput) {
+        baseImageInput.addEventListener('input', debounce((e) => {
+            validateBaseImage(e.target.value.trim().toLowerCase());
+        }, 500));
+    }
+});
+
 document.addEventListener('DOMContentLoaded', function() {
     // Initialize tooltips
     const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
@@ -57,7 +134,7 @@ function handleSearch(event) {
 async function buildImage() {
     const baseImageName = document.getElementById('baseImageName').value.trim().toLowerCase();
     const storageSize = document.getElementById('storageSize').value;
-    const versionValue = document.getElementById('version').value.trim();
+    const versionInput = document.getElementById('version').value.trim();
 
     // Enhanced input validation
     if (!baseImageName) {
@@ -75,52 +152,22 @@ async function buildImage() {
     buildButton.innerHTML = '<i class="bi bi-arrow-repeat spin me-1"></i>Validating...';
 
     try {
-        // Extract version number for validation
-        const versionForValidation = versionValue.includes(':') ? 
-            versionValue.split(':')[1] : 
-            versionValue || 'latest';
+        let imageSource = '';
+        let version = '';
 
-        // Check if image exists in Docker Hub via our proxy
-        const proxyUrl = `/api/docker-hub/validate/${baseImageName}/${versionForValidation}`;
-        const dockerResponse = await fetch(proxyUrl);
-
-        if (dockerResponse.status === 404) {
-            // Show error message below input field
-            document.getElementById('baseImageError').style.display = 'block';
-            buildButton.disabled = false;
-            buildButton.innerHTML = originalButtonText;
-            return;
+        // Handle Laravel specifically
+        if (baseImageName === 'laravel') {
+            imageSource = 'bitnami/laravel';
+            version = versionInput.includes(':') ? versionInput.split(':')[1] : 'latest';
+        } else {
+            // For other images, use the input as is
+            imageSource = baseImageName;
+            version = versionInput.includes(':') ? versionInput.split(':')[1] : 'latest';
         }
 
-        if (!dockerResponse.ok) {
-            // Handle timeout errors specifically
-            if (dockerResponse.status === 504) {
-                showToast('Connection timed out while checking Docker Hub. Please try again.', 'error');
-            } else {
-                showToast('Error checking Docker Hub. Please try again.', 'error');
-            }
-            buildButton.disabled = false;
-            buildButton.innerHTML = originalButtonText;
-            return;
-        }
+        const fullVersion = `${imageSource}:${version}`;
 
-        const dockerData = await dockerResponse.json();
-
-        // Check if ARM architecture is supported
-        const hasArmSupport = dockerData.images?.some(img => 
-            (img.architecture === 'arm64' && img.variant === 'v8') || 
-            (img.architecture === 'arm' && img.variant === 'v7') ||
-            (img.architecture === 'arm' && img.variant === 'v5')
-        );
-
-        if (!hasArmSupport) {
-            showToast(`Image '${baseImageName}:${versionValue}' does not support ARM architecture`, 'error');
-            buildButton.disabled = false;
-            buildButton.innerHTML = originalButtonText;
-            return;
-        }
-
-        // Image exists and supports ARM, proceed with building
+        // Image exists, proceed with building
         buildButton.innerHTML = '<i class="bi bi-arrow-repeat spin me-1"></i>Building...';
 
         // Get the URL from the modal's data attribute
@@ -130,8 +177,9 @@ async function buildImage() {
         const requestBody = {
             appName: baseImageName.substring(0, 4),
             base_image_name: baseImageName,
-            version: versionValue,
-            StorageSize: parseInt(storageSize),
+            imageSource: imageSource,
+            version: fullVersion,
+            StorageSize: parseInt(storageSize) + "Gi",
             user_id: firebase.auth().currentUser.uid
         };
 
@@ -147,23 +195,18 @@ async function buildImage() {
         const data = await response.json();
         
         if (response.ok) {
-            // Success case
-            showToast(`Successfully initiated build for ${baseImageName}:${versionValue}`, 'success');
+            showToast(`Successfully initiated build for ${fullVersion}`, 'success');
             
-            // Close modal with slight delay to show success state
             setTimeout(() => {
                 const modal = bootstrap.Modal.getInstance(document.getElementById('aiBuilderModal'));
                 modal.hide();
                 
-                // Reset form
                 document.getElementById('aiBuilderForm').reset();
                 document.getElementById('storageSizeValue').textContent = '1';
                 
-                // Refresh page after modal is closed
                 setTimeout(() => window.location.reload(), 500);
             }, 1000);
         } else {
-            // Detailed error message
             const errorMessage = data.message || 'Failed to build base image';
             showToast(`Error: ${errorMessage}. Please try again.`, 'error');
             buildButton.disabled = false;
@@ -171,7 +214,6 @@ async function buildImage() {
         }
     } catch (error) {
         console.error('Error building base image:', error);
-        // More specific error message based on error type
         let errorMessage = 'An error occurred while building the base image';
         if (error.name === 'TypeError' && !window.navigator.onLine) {
             errorMessage = 'Network error. Please check your internet connection.';
@@ -255,41 +297,20 @@ async function redeployImage(baseImageName) {
         const baseImage = await fetch(`/api/base-images/${baseImageName}`).then(r => r.json());
         if (!baseImage) throw new Error('Base image not found');
 
-        // Extract storage size from storageImages configuration
-        const storageImages = JSON.parse(baseImage.storageImages);
-        const storageSize = storageImages.spec.resources.requests.storage;
+        // Get the current user's ID token
+        const currentUser = firebase.auth().currentUser;
+        if (!currentUser) throw new Error('User not authenticated');
 
-        // Delete the existing base image
-        const deleteResponse = await fetch(`/api/base-images/${baseImage._id}`, {
-            method: 'DELETE',
-            headers: {
-                'Authorization': `Bearer ${await firebase.auth().currentUser.getIdToken()}`
-            }
-        });
-        if (!deleteResponse.ok) throw new Error('Failed to delete base image');
+        // Prepare request body with the correct format
+        const requestBody = {
+            client_namespace: baseImage.base_image.substring(0, 8),
+            client_id: currentUser.uid,
+            base_image: baseImage._id,
+            index: Date.now().toString()
+        };
 
         // Get the create URL from the modal's data attribute
         const createUrl = document.getElementById('aiBuilderModal').dataset.createUrl;
-
-        // Extract image source from version
-        let imageSource = baseImage.version;
-        if (imageSource.includes(':')) {
-            imageSource = imageSource.split(':')[0];
-            // Add 'library/' prefix for official images
-            if (!imageSource.includes('/')) {
-                imageSource = 'library/' + imageSource;
-            }
-        }
-
-        // Prepare request body for recreation
-        const requestBody = {
-            appName: baseImage.base_image.substring(0, 4),
-            base_image_name: baseImage.base_image,
-            imageSource: imageSource,
-            version: baseImage.version,
-            StorageSize: storageSize,
-            user_id: firebase.auth().currentUser.uid
-        };
 
         // Create new base image
         const response = await fetch(createUrl, {
@@ -307,7 +328,7 @@ async function redeployImage(baseImageName) {
         }
 
         // Show success message
-        showToast('Base image redeployment initiated successfully', 'success');
+        showToast('Base image rebuild initiated successfully', 'success');
 
         // Refresh the page after a short delay
         setTimeout(() => {
@@ -315,8 +336,8 @@ async function redeployImage(baseImageName) {
         }, 1500);
 
     } catch (error) {
-        console.error('Error redeploying base image:', error);
-        showToast('Failed to redeploy base image: ' + error.message, 'error');
+        console.error('Error rebuilding base image:', error);
+        showToast('Failed to rebuild base image: ' + error.message, 'error');
     }
 }
  

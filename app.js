@@ -887,33 +887,54 @@ app.put('/api/my-apps/:id', verifyToken, upload.fields([
     { name: 'icon', maxCount: 1 },
     { name: 'screenshots', maxCount: 5 }
 ]), async (req, res) => {
+
     try {
         const sanitizedId = req.params.id.replace(/"/g, '');
-        const application = await Application.findOne({
-            _id: sanitizedId,
-            user_id: req.user.provider_uid
-        });
+        let updateData = {};
 
-        if (!application) {
-            return res.status(404).json({ error: 'Application not found' });
-        }
-
-        // Update fields
-        const updateFields = ['description', 'support_detail', 'price', 'status', 'category'];
-        updateFields.forEach(field => {
+        // Prepare basic fields
+        const basicFields = ['description', 'support_detail', 'price', 'status', 'category'];
+        basicFields.forEach(field => {
             if (req.body[field]) {
-                application[field] = req.body[field];
+                updateData[field] = req.body[field];
             }
         });
 
-        // Handle file uploads
+        // Handle base_image and main_base_image
+        if (req.body.base_image) {
+            try {
+                const baseImages = Array.isArray(req.body.base_image) 
+                    ? req.body.base_image 
+                    : JSON.parse(req.body.base_image);
+                
+                console.log('Parsed base_image data:', baseImages);
+                updateData.base_image = baseImages.map(id => new mongoose.Types.ObjectId(id));
+                console.log('Updated base_image:', updateData.base_image);
+            } catch (error) {
+                console.error('Error parsing base_image:', error);
+                console.error('base_image value was:', req.body.base_image);
+                return res.status(400).json({ error: 'Invalid base_image format' });
+            }
+        }
+
+        if (req.body.main_base_image) {
+            try {
+                updateData.main_base_image = new mongoose.Types.ObjectId(req.body.main_base_image);
+                console.log('Updated main_base_image:', updateData.main_base_image);
+            } catch (error) {
+                console.error('Error parsing main_base_image:', error);
+                return res.status(400).json({ error: 'Invalid main_base_image format' });
+            }
+        }
+
+        // Handle file uploads if any
         if (req.files) {
             const bucket = admin.storage().bucket();
 
             // Handle logo upload
             if (req.files.icon) {
                 const iconFile = req.files.icon[0];
-                const iconPath = `applications/${application._id}/icon/${iconFile.originalname}`;
+                const iconPath = `applications/${sanitizedId}/icon/${iconFile.originalname}`;
                 const iconBuffer = iconFile.buffer;
                 
                 const iconFileUpload = bucket.file(iconPath);
@@ -923,7 +944,7 @@ app.put('/api/my-apps/:id', verifyToken, upload.fields([
                     expires: '03-01-2500'
                 });
 
-                application.logo = {
+                updateData.logo = {
                     url: iconUrl,
                     name: iconFile.originalname
                 };
@@ -932,7 +953,7 @@ app.put('/api/my-apps/:id', verifyToken, upload.fields([
             // Handle screenshots upload
             if (req.files.screenshots) {
                 const screenshotPromises = req.files.screenshots.map(async (file) => {
-                    const screenshotPath = `applications/${application._id}/screenshots/${file.originalname}`;
+                    const screenshotPath = `applications/${sanitizedId}/screenshots/${file.originalname}`;
                     const screenshotBuffer = file.buffer;
                     
                     const screenshotFileUpload = bucket.file(screenshotPath);
@@ -954,21 +975,44 @@ app.put('/api/my-apps/:id', verifyToken, upload.fields([
 
                 const newScreenshots = await Promise.all(screenshotPromises);
                 const existingCount = parseInt(req.body.existingScreenshotsCount) || 0;
+                
+                // Get existing application to merge screenshots
+                const currentApp = await Application.findById(sanitizedId);
                 if (existingCount === 0) {
-                    application.screenshoots = newScreenshots;
+                    updateData.screenshoots = newScreenshots;
                     if (newScreenshots.length > 0) {
-                        application.screenshoots[0].isCover = true;
+                        updateData.screenshoots[0].isCover = true;
                     }
-                } else {
-                    application.screenshoots = [
-                        ...application.screenshoots.slice(0, existingCount),
+                } else if (currentApp && currentApp.screenshoots) {
+                    updateData.screenshoots = [
+                        ...currentApp.screenshoots.slice(0, existingCount),
                         ...newScreenshots
                     ];
                 }
             }
         }
 
-        await application.save();
+        // Update the application using findOneAndUpdate
+        const updatedApplication = await Application.findOneAndUpdate(
+            {
+                _id: sanitizedId,
+                user_id: req.user.provider_uid
+            },
+            { 
+                $set: updateData,
+                $currentDate: { updated_at: true }
+            },
+            { 
+                new: true,
+                runValidators: true
+            }
+        );
+
+        if (!updatedApplication) {
+            return res.status(404).json({ error: 'Application not found' });
+        }
+
+        console.log('Application updated successfully:', updatedApplication);
         res.json({ message: 'Application updated successfully' });
     } catch (error) {
         console.error('Error updating application:', error);

@@ -1,9 +1,19 @@
 class PublishController {
     constructor() {
+        console.log('PublishController constructor started');
+        
         this.form = document.getElementById('publishForm');
+        console.log('Found form:', this.form);
+        
+        if (!this.form) {
+            console.error('Publish form not found');
+            return;
+        }
+        
         this.categorySelect = document.getElementById('category');
         this.statusSwitch = document.getElementById('statusSwitch');
         this.statusText = document.getElementById('statusText');
+        
         this.initializeFirebase();
         this.initializeEventListeners();
         this.loadCategories();
@@ -12,11 +22,42 @@ class PublishController {
         this.selectedBaseImages = new Set();
         this.mainBaseImageId = null;
         
-        if (this.form) {
-            this.initializeForm();
-            this.initializeBaseImageHandlers();
-            this.initializeTinyMCE();
-        }
+        this.initializeForm();
+        this.initializeBaseImageHandlers();
+        this.initializeTinyMCE();
+
+        console.log('PublishController constructor completed');
+
+        // Add styles for base image cards
+        const style = document.createElement('style');
+        style.textContent = `
+            .base-image-card {
+                transition: transform 0.2s, box-shadow 0.2s;
+            }
+            .base-image-card:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            }
+            .base-image-card.selected {
+                background-color: #e9ecef;
+                transform: scale(0.98);
+            }
+            .base-images-scroll::-webkit-scrollbar {
+                height: 8px;
+            }
+            .base-images-scroll::-webkit-scrollbar-track {
+                background: #f1f1f1;
+                border-radius: 4px;
+            }
+            .base-images-scroll::-webkit-scrollbar-thumb {
+                background: #888;
+                border-radius: 4px;
+            }
+            .base-images-scroll::-webkit-scrollbar-thumb:hover {
+                background: #555;
+            }
+        `;
+        document.head.appendChild(style);
     }
 
     initializeFirebase() {
@@ -76,9 +117,11 @@ class PublishController {
     }
 
     async handleSubmit(e) {
+        console.log('handleSubmit called', e);
         e.preventDefault();
         
         if (!this.validateBaseImages()) {
+            console.log('Base image validation failed');
             return;
         }
         
@@ -86,69 +129,119 @@ class PublishController {
             const user = firebase.auth().currentUser;
             if (!user) throw new Error('No user logged in');
             
-            const token = await user.getIdToken();
-            const formData = new FormData();
-            
+            let token = await user.getIdToken(true);
+
             const isEdit = this.form.dataset.edit === 'true';
             const appId = this.form.dataset.appId;
 
-            // Add form data
-            formData.append('title', document.getElementById('appName').value);
-            const editor = tinymce.get('description');
-            formData.append('description', editor ? editor.getContent() : document.getElementById('description').value);
-            formData.append('support_detail', document.getElementById('support_detail').value);
-            formData.append('price', document.getElementById('price').value);
-            formData.append('category', document.getElementById('category').value);
-            formData.append('status', this.statusSwitch.checked ? 'Published' : 'Draft');
+            // Get selected base image IDs
+            const selectedBaseImageElements = document.querySelectorAll('.selected-base-image');
+            console.log('Selected base image elements:', selectedBaseImageElements);
+            
+            const selectedBaseImages = Array.from(selectedBaseImageElements).map(el => el.dataset.id);
+            console.log('Selected base image IDs:', selectedBaseImages);
+            
+            const mainBaseImageRadio = document.querySelector('.main-base-image-radio:checked');
+            console.log('Main base image radio:', mainBaseImageRadio);
+            
+            const mainBaseImageId = mainBaseImageRadio ? mainBaseImageRadio.value : null;
+            console.log('Main base image ID:', mainBaseImageId);
 
-            // Handle icon upload
-            const iconFile = document.getElementById('appIcon').files[0];
-            if (iconFile) {
-                formData.append('icon', iconFile);
+            // Create the request payload
+            const payload = {
+                title: document.getElementById('appName').value,
+                description: tinymce.get('description') ? tinymce.get('description').getContent() : document.getElementById('description').value,
+                support_detail: document.getElementById('support_detail').value,
+                price: parseInt(document.getElementById('price').value, 10),
+                category: document.getElementById('category').value,
+                status: this.statusSwitch.checked ? 'Published' : 'Draft',
+                base_image: selectedBaseImages,
+                main_base_image: mainBaseImageId,
+                user_id: user.uid
+            };
+
+            if (isEdit) {
+                payload._id = appId;
             }
 
-            // Handle screenshots upload
-            const screenshotFiles = document.getElementById('screenshots').files;
-            if (screenshotFiles.length > 0) {
-                // Get all existing screenshots
-                const existingScreenshots = document.querySelectorAll('.screenshot-container:not(.new-screenshot)').length;
-                formData.append('existingScreenshotsCount', existingScreenshots);
+            // Log the complete payload for debugging
+            console.log('Complete payload before sending:', JSON.stringify(payload, null, 2));
 
-                // Append each screenshot file
-                for (let i = 0; i < screenshotFiles.length; i++) {
-                    const file = screenshotFiles[i];
-                    // Generate a unique filename using timestamp
-                    const timestamp = Date.now();
-                    const newFilename = `${timestamp}-${i+1}.${file.name.split('.').pop()}`;
-                    
-                    // Create a new File object with the new filename
-                    const renamedFile = new File([file], newFilename, { type: file.type });
-                    formData.append('screenshots', renamedFile);
+            // First, send the base data as JSON
+            const url = isEdit ? `/api/my-apps/${appId}` : '/api/applications/publish';
+            console.log('Sending main update request to:', url);
+            
+            const response = await fetch(url, {
+                method: isEdit ? 'PUT' : 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+            });
+
+            // Parse JSON response only once
+            const responseData = await response.json();
+            console.log('Main update response:', responseData);
+            
+            if (!response.ok) {
+                throw new Error(responseData.error || 'Failed to save application');
+            }
+
+            // Show success message for main update
+            const message = isEdit ? 'Application updated successfully!' : 'Application published successfully!';
+            alert(message);
+
+            // If there are files to upload, handle them separately
+            if (document.getElementById('appIcon').files.length > 0 || 
+                document.getElementById('screenshots').files.length > 0) {
+                
+                const formData = new FormData();
+                
+                // Handle icon upload
+                const iconFile = document.getElementById('appIcon').files[0];
+                if (iconFile) {
+                    formData.append('icon', iconFile);
+                }
+
+                // Handle screenshots upload
+                const screenshotFiles = document.getElementById('screenshots').files;
+                if (screenshotFiles.length > 0) {
+                    const existingScreenshots = document.querySelectorAll('.screenshot-container:not(.new-screenshot)').length;
+                    formData.append('existingScreenshotsCount', existingScreenshots);
+
+                    for (let i = 0; i < screenshotFiles.length; i++) {
+                        const file = screenshotFiles[i];
+                        const timestamp = Date.now();
+                        const newFilename = `${timestamp}-${i+1}.${file.name.split('.').pop()}`;
+                        const renamedFile = new File([file], newFilename, { type: file.type });
+                        formData.append('screenshots', renamedFile);
+                    }
+                }
+
+                // Send files if any
+                if (formData.has('icon') || formData.has('screenshots')) {
+                    console.log('Sending file upload request...');
+                    const fileUploadUrl = `/api/my-apps/${responseData._id || appId}/upload-files`;
+                    const fileResponse = await fetch(fileUploadUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: formData
+                    });
+
+                    if (!fileResponse.ok) {
+                        const fileError = await fileResponse.json();
+                        console.error('File upload failed:', fileError);
+                        throw new Error('Failed to upload files');
+                    }
                 }
             }
 
-            // Add base images data
-            formData.append('base_image', JSON.stringify(Array.from(this.selectedBaseImages)));
-            formData.append('main_base_image', this.mainBaseImageId);
+            // Redirect after everything is done
+            window.location.replace('/my-apps/list');
 
-            const url = isEdit ? `/api/my-apps/${appId}` : '/api/applications/publish';
-            const method = isEdit ? 'PUT' : 'POST';
-            
-            const response = await fetch(url, {
-                method: method,
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                },
-                body: formData
-            });
-
-            if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || 'Failed to save application');
-            }
-
-            alert(isEdit ? 'Application updated successfully!' : 'Application published successfully!');
-            window.location.href = '/my-apps/list';
         } catch (error) {
             console.error('Error:', error);
             alert(error.message || 'Failed to save application');
@@ -184,7 +277,13 @@ class PublishController {
     }
 
     initializeEventListeners() {
-        this.form.addEventListener('submit', (e) => this.handleSubmit(e));
+        console.log('Initializing event listeners');
+        if (this.form) {
+            this.form.addEventListener('submit', this.handleSubmit.bind(this));
+            console.log('Form submit event listener attached to:', this.form);
+        } else {
+            console.error('Form element not found in initializeEventListeners');
+        }
     }
 
     setupImagePreviews() {
@@ -289,8 +388,8 @@ class PublishController {
     }
 
     initializeBaseImageHandlers() {
-        const addButton = document.getElementById('addBaseImage');
-        const baseImageSelect = document.getElementById('baseImageSelect');
+        const baseImagesContainer = document.getElementById('baseImagesContainer');
+        const searchInput = document.getElementById('baseImageSearch');
         const selectedBaseImagesContainer = document.getElementById('selectedBaseImages');
 
         // Initialize selected base images from existing data
@@ -298,39 +397,84 @@ class PublishController {
             this.selectedBaseImages.add(el.dataset.id);
         });
 
-        // Initialize main base image from existing data
-        const checkedMainRadio = document.querySelector('.main-base-image-radio:checked');
-        if (checkedMainRadio) {
-            this.mainBaseImageId = checkedMainRadio.value;
-        }
+        // Handle base image selection
+        baseImagesContainer.addEventListener('click', async (e) => {
+            const card = e.target.closest('.base-image-card');
+            if (!card) return;
 
-        addButton.addEventListener('click', () => {
-            const selectedOption = baseImageSelect.selectedOptions[0];
-            if (!selectedOption.value) return;
+            const baseImageId = card.dataset.id;
+            if (this.selectedBaseImages.has(baseImageId)) {
+                console.log('Base image already selected:', baseImageId);
+                return;
+            }
 
-            const baseImageId = selectedOption.value;
-            if (this.selectedBaseImages.has(baseImageId)) return;
+            // Clear existing selections first
+            this.selectedBaseImages.clear();
+            selectedBaseImagesContainer.innerHTML = '';
 
+            // Add the selected base image
             this.selectedBaseImages.add(baseImageId);
             const baseImageElement = this.createBaseImageElement({
                 id: baseImageId,
-                name: selectedOption.dataset.name,
-                version: selectedOption.dataset.version,
-                thumbnail: selectedOption.dataset.thumbnail
+                name: card.dataset.name,
+                version: card.dataset.version,
+                thumbnail: card.dataset.thumbnail,
+                description: card.dataset.description
             });
             selectedBaseImagesContainer.appendChild(baseImageElement);
 
-            // If this is the first base image, automatically set it as main
-            if (this.selectedBaseImages.size === 1) {
-                const radio = baseImageElement.querySelector('.main-base-image-radio');
-                radio.checked = true;
-                this.mainBaseImageId = baseImageId;
+            // Set this as the main base image
+            const mainRadio = baseImageElement.querySelector('.main-base-image-radio');
+            mainRadio.checked = true;
+            this.mainBaseImageId = baseImageId;
+
+            // Check if this base image requires a database
+            const databaseServer = card.dataset.database;
+            if (databaseServer && 
+                !['None*', 'N/A', 'null', 'None Required', 'none', 'None required'].includes(databaseServer?.toLowerCase())) {
+                
+                console.log('Looking for matching database server:', databaseServer);
+                
+                // Find the corresponding database base image
+                const dbBaseImage = Array.from(document.querySelectorAll('.base-image-card'))
+                    .find(dbCard => {
+                        const isDbImage = dbCard.dataset.isDatabase === 'true';
+                        const dbName = dbCard.dataset.name.toLowerCase();
+                        const requiredDb = databaseServer.toLowerCase();
+                        
+                        console.log('Checking database image:', {
+                            name: dbCard.dataset.name,
+                            isDbImage,
+                            dbName,
+                            requiredDb,
+                            matches: dbName.includes(requiredDb) || requiredDb.includes(dbName)
+                        });
+
+                        return isDbImage && (dbName.includes(requiredDb) || requiredDb.includes(dbName));
+                    });
+
+                if (dbBaseImage) {
+                    console.log('Found matching database image:', dbBaseImage.dataset.name);
+                    
+                    // Add the database base image
+                    this.selectedBaseImages.add(dbBaseImage.dataset.id);
+                    const dbBaseImageElement = this.createBaseImageElement({
+                        id: dbBaseImage.dataset.id,
+                        name: dbBaseImage.dataset.name,
+                        version: dbBaseImage.dataset.version,
+                        thumbnail: dbBaseImage.dataset.thumbnail,
+                        description: dbBaseImage.dataset.description
+                    });
+                    selectedBaseImagesContainer.appendChild(dbBaseImageElement);
+                }
             }
 
-            baseImageSelect.value = '';
+            // Add selection effect
+            card.classList.add('selected');
+            setTimeout(() => card.classList.remove('selected'), 200);
         });
 
-        // Event delegation for remove buttons and radio buttons
+        // Handle remove buttons
         selectedBaseImagesContainer.addEventListener('click', (e) => {
             if (e.target.closest('.remove-base-image')) {
                 const baseImageElement = e.target.closest('.selected-base-image');
@@ -341,34 +485,56 @@ class PublishController {
                     this.mainBaseImageId = null;
                 }
                 baseImageElement.remove();
+
+                // If this was the main application, remove all base images
+                if (baseImageElement.querySelector('.main-base-image-radio').checked) {
+                    selectedBaseImagesContainer.innerHTML = '';
+                    this.selectedBaseImages.clear();
+                    this.mainBaseImageId = null;
+                }
             }
         });
 
+        // Handle main base image selection
         selectedBaseImagesContainer.addEventListener('change', (e) => {
             if (e.target.classList.contains('main-base-image-radio')) {
                 this.mainBaseImageId = e.target.value;
+                console.log('Set main base image to:', this.mainBaseImageId);
             }
         });
     }
 
-    createBaseImageElement({ id, name, version, thumbnail }) {
+    createBaseImageElement({ id, name, version, thumbnail, description }) {
         const div = document.createElement('div');
         div.className = 'col-12 selected-base-image';
         div.dataset.id = id;
         
+        const thumbnailHtml = thumbnail ? 
+            `<img src="${thumbnail}" alt="${name}" class="me-3" style="width: 48px; height: 48px; object-fit: contain;">` :
+            `<div class="d-flex align-items-center justify-content-center me-3" style="height: 48px; width: 48px; background-color: #f8f9fa; border-radius: 8px;">
+                <span class="display-6 text-muted" style="font-size: 1.5rem;">
+                    ${name.charAt(0).toUpperCase()}
+                </span>
+            </div>`;
+        
         div.innerHTML = `
             <div class="card">
                 <div class="card-body p-3">
-                    <div class="d-flex align-items-center">
-                        <img src="${thumbnail}" 
-                            alt="${name}" 
-                            class="me-3" 
-                            style="width: 48px; height: 48px; object-fit: contain;">
+                    <div class="d-flex align-items-start">
+                        ${thumbnailHtml}
                         <div class="flex-grow-1">
-                            <h6 class="mb-0">${name}</h6>
-                            <small class="text-muted">Version: ${version}</small>
+                            <h6 class="mb-1">${name}</h6>
+                            <div class="mb-1">
+                                <span class="badge bg-primary" style="font-size: 0.7rem;">
+                                    <i class="bi bi-tag-fill me-1"></i>
+                                    ${version}
+                                </span>
+                            </div>
+                            <p class="text-muted mb-0" style="font-size: 0.8rem; line-height: 1.2;">
+                                ${description || ''}
+                            </p>
                         </div>
-                        <div class="d-flex align-items-center gap-2">
+                        <div class="d-flex align-items-center gap-2 ms-2">
                             <div class="form-check">
                                 <input class="form-check-input main-base-image-radio" 
                                     type="radio" 
@@ -405,8 +571,4 @@ class PublishController {
     initializeTinyMCE() {
         // ... rest of the TinyMCE initialization ...
     }
-}
-
-document.addEventListener('DOMContentLoaded', () => {
-    new PublishController();
-}); 
+} 
