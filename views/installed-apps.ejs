@@ -44,7 +44,11 @@
                                              data-status="<%= installed.status %>">
                                             <% if (app.logo && app.logo.url) { %>
                                                 <a href="/store/app/<%= app._id %>" class="text-decoration-none">
-                                                    <img src="<%= app.logo.url %>" class="card-img-top p-3" alt="<%= app.title %>" style="height: 200px; object-fit: contain;">
+                                                    <img src="<%= app.logo.url %>" 
+                                                        class="card-img-top p-3" 
+                                                        alt="<%= app.title %>" 
+                                                        style="height: 200px; object-fit: contain;"
+                                                        onerror="this.onerror=null; this.src='/images/default-app-icon.svg';">
                                                 </a>
                                             <% } else { %>
                                                 <a href="/store/app/<%= app._id %>" class="text-decoration-none">
