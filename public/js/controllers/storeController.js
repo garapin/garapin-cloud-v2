@@ -79,14 +79,26 @@ async function handleInstall(event) {
                 
                 const token = await user.getIdToken();
                 
+                // Generate timestamp in DDMMYYhhmmss format
+                const now = new Date();
+                const timestamp = now.toLocaleString('en-GB', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    hour12: false
+                }).replace(/[^\d]/g, '');
+                
                 // Start installation
-                const response = await fetch('/store/install', {
+                const response = await fetch(`/store/install/${appId}`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'Authorization': `Bearer ${token}`
                     },
-                    body: JSON.stringify({ appId })
+                    body: JSON.stringify({ index: timestamp })
                 });
                 
                 if (!response.ok) {

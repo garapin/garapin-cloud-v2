@@ -2,30 +2,69 @@
 const refreshIntervals = new Map();
 const removingApps = new Set();
 
+// Function to show toast notifications
+function showToast(message, type = 'info') {
+    const toast = document.getElementById('appToast');
+    const toastBody = toast.querySelector('.toast-body');
+    
+    toastBody.textContent = message;
+    toast.classList.remove('bg-success', 'bg-danger', 'bg-info');
+    
+    switch(type) {
+        case 'success':
+            toast.classList.add('bg-success', 'text-white');
+            break;
+        case 'error':
+            toast.classList.add('bg-danger', 'text-white');
+            break;
+        default:
+            toast.classList.add('bg-info', 'text-white');
+    }
+    
+    const bsToast = new bootstrap.Toast(toast);
+    bsToast.show();
+}
+
+// Function to retry with exponential backoff
+async function retryWithBackoff(fn, maxRetries = 3) {
+    for (let i = 0; i < maxRetries; i++) {
+        try {
+            return await fn();
+        } catch (error) {
+            if (i === maxRetries - 1) throw error;
+            const waitTime = Math.min(1000 * Math.pow(2, i), 10000);
+            await new Promise(resolve => setTimeout(resolve, waitTime));
+        }
+    }
+}
+
 // Function to fetch installed apps
 async function fetchInstalledApps() {
-    // Skip refresh completely if any app is being removed
-    if (removingApps.size > 0) {
-        return;
-    }
-
-    const user = firebase.auth().currentUser;
-    if (!user) {
-        return;
-    }
-
     try {
-        const token = await user.getIdToken(true);
+        const user = firebase.auth().currentUser;
+        if (!user) {
+            console.log('No user logged in');
+            window.location.href = '/login';
+            return;
+        }
+
+        const token = await retryWithBackoff(async () => {
+            try {
+                return await user.getIdToken(true); // Force token refresh
+            } catch (error) {
+                console.warn('Token refresh failed, trying without force refresh');
+                return await user.getIdToken(false);
+            }
+        });
+
         const response = await fetch('/my-apps/installed', {
-            method: 'GET',
             headers: {
-                'Authorization': `Bearer ${token}`,
-                'Cache-Control': 'no-cache'
+                'Authorization': `Bearer ${token}`
             }
         });
 
         if (!response.ok) {
-            throw new Error('Failed to fetch installed apps');
+            throw new Error(`HTTP error! status: ${response.status}`);
         }
 
         const html = await response.text();
@@ -42,6 +81,7 @@ async function fetchInstalledApps() {
         }
     } catch (error) {
         console.error('Error fetching installed apps:', error);
+        showToast('Failed to load installed apps. Please refresh the page.', 'error');
     }
 }
 
