@@ -301,12 +301,27 @@ async function redeployImage(baseImageName) {
         const currentUser = firebase.auth().currentUser;
         if (!currentUser) throw new Error('User not authenticated');
 
+        // Step 3: Delete the old base image
+        const deleteResponse = await fetch(`/api/base-images/${baseImage._id}`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${await currentUser.getIdToken()}`
+            }
+        });
+
+        if (!deleteResponse.ok) {
+            throw new Error('Failed to delete old base image');
+        }
+
         // Prepare request body with the correct format
         const requestBody = {
-            client_namespace: baseImage.base_image.substring(0, 8),
-            client_id: currentUser.uid,
-            base_image: baseImage._id,
-            index: Date.now().toString()
+            appName: baseImageName.substring(0, 4),
+            base_image_name: baseImageName,
+            imageSource: baseImage.version ? baseImage.version.split(':')[0] : baseImageName,
+            version: baseImage.version || `${baseImageName}:latest`,
+            StorageSize: baseImage.storage_size || "1Gi",
+            user_id: currentUser.uid
         };
 
         // Get the create URL from the modal's data attribute
@@ -338,6 +353,15 @@ async function redeployImage(baseImageName) {
     } catch (error) {
         console.error('Error rebuilding base image:', error);
         showToast('Failed to rebuild base image: ' + error.message, 'error');
+        // Close the modal on error
+        const modalInstance = bootstrap.Modal.getInstance(document.querySelector('.modal'));
+        if (modalInstance) {
+            modalInstance.hide();
+            // Remove the modal element after hiding
+            setTimeout(() => {
+                document.querySelector('.modal')?.remove();
+            }, 150);
+        }
     }
 }
  
