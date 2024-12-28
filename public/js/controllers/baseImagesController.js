@@ -314,15 +314,33 @@ async function redeployImage(baseImageName) {
             throw new Error('Failed to delete old base image');
         }
 
+        // Format imageSource based on whether it's an official image
+        let imageSource;
+        if (baseImage.version) {
+            const versionParts = baseImage.version.split(':')[0]; // e.g., "bitnami/laravel" from "bitnami/laravel:latest"
+            if (versionParts.includes('/')) {
+                // Non-official image (e.g., "bitnami/laravel")
+                imageSource = versionParts;
+            } else {
+                // Official image (e.g., "mysql")
+                imageSource = `library/${versionParts}`;
+            }
+        } else {
+            // Fallback: check if baseImageName contains a slash
+            imageSource = baseImageName.includes('/') ? baseImageName : `library/${baseImageName}`;
+        }
+
         // Prepare request body with the correct format
         const requestBody = {
             appName: baseImageName.substring(0, 4),
             base_image_name: baseImageName,
-            imageSource: baseImage.version ? baseImage.version.split(':')[0] : baseImageName,
+            imageSource: imageSource,
             version: baseImage.version || `${baseImageName}:latest`,
             StorageSize: baseImage.storage_size || "1Gi",
             user_id: currentUser.uid
         };
+
+        console.log('Rebuilding base image with data:', requestBody);
 
         // Get the create URL from the modal's data attribute
         const createUrl = document.getElementById('aiBuilderModal').dataset.createUrl;
@@ -361,6 +379,70 @@ async function redeployImage(baseImageName) {
             setTimeout(() => {
                 document.querySelector('.modal')?.remove();
             }, 150);
+        }
+    }
+}
+
+class BaseImagesController {
+    constructor() {
+        this.initializeEventListeners();
+    }
+
+    initializeEventListeners() {
+        const form = document.getElementById('baseImageForm');
+        if (form) {
+            form.addEventListener('submit', this.handleSubmit.bind(this));
+        }
+    }
+
+    async handleSubmit(event) {
+        event.preventDefault();
+        
+        try {
+            const user = firebase.auth().currentUser;
+            if (!user) throw new Error('No user logged in');
+            
+            const token = await user.getIdToken(true);
+            
+            const formData = {
+                appName: document.getElementById('appName').value,
+                version: document.getElementById('version').value,
+                description: document.getElementById('description').value,
+                isOfficial: document.getElementById('isOfficial').checked,
+                isDatabase: document.getElementById('isDatabase').checked,
+                databaseServer: document.getElementById('databaseServer').value,
+                user_id: user.uid
+            };
+
+            // Format imageSource based on whether it's an official image or not
+            const imageName = formData.appName.trim();
+            formData.imageSource = formData.isOfficial ? `library/${imageName}` : imageName;
+
+            console.log('Creating base image with data:', formData);
+
+            const response = await fetch(CREATE_BASE_IMAGE_AI_URL, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(formData)
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.message || 'Failed to create base image');
+            }
+
+            const result = await response.json();
+            console.log('Base image created successfully:', result);
+            
+            alert('Base image created successfully!');
+            window.location.href = '/base-images/list';
+            
+        } catch (error) {
+            console.error('Error creating base image:', error);
+            alert(error.message || 'Failed to create base image');
         }
     }
 }
