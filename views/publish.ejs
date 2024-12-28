@@ -22,6 +22,14 @@
         .base-images-scroll::-webkit-scrollbar-thumb:hover {
             background: #555;
         }
+        .custom-tooltip {
+            --bs-tooltip-bg: #fff3cd !important;
+            --bs-tooltip-color: #000 !important;
+            --bs-tooltip-opacity: 1 !important;
+        }
+        .tooltip.show {
+            opacity: 1 !important;
+        }
     </style>
     <!-- TinyMCE -->
     <script src="https://cdn.tiny.cloud/1/dyxuypc6gq1q7giduzgshow05kyj1krbt13zb30lmk9v05c7/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
@@ -203,8 +211,15 @@
                                                                                             <%= image.base_image %>
                                                                                         </h6>
                                                                                         <div class="mb-1">
-                                                                                            <span class="badge bg-primary" style="font-size: 0.7rem;">
-                                                                                                <i class="bi bi-tag-fill me-1"></i>
+                                                                                            <span class="badge bg-primary version-badge" 
+                                                                                                style="font-size: 0.7rem; font-weight: normal; white-space: nowrap; display: inline-block; 
+                                                                                                line-height: 1.1; max-width: calc(90% - 15px); overflow: hidden; text-overflow: ellipsis; 
+                                                                                                text-align: left; padding: 0.2em 0.4em; margin-right: 5px; cursor: help;"
+                                                                                                data-bs-toggle="tooltip" 
+                                                                                                data-bs-placement="top" 
+                                                                                                data-bs-custom-class="custom-tooltip"
+                                                                                                title="<%= image.version %>">
+                                                                                                <i class="bi bi-info-circle me-1"></i>
                                                                                                 <%= image.version %>
                                                                                             </span>
                                                                                         </div>
@@ -216,7 +231,7 @@
                                                                                     -webkit-box-orient: vertical; overflow: hidden;">
                                                                                     <%= image.description %>
                                                                                 </p>
-                                                                                <% if (image.database_server) { %>
+                                                                                <% if (image.database_server && image.database_server.trim() !== '' && image.database_server !== 'null' && image.database_server !== 'none') { %>
                                                                                     <div class="mt-1">
                                                                                         <span class="badge bg-info" style="font-size: 0.7rem;">
                                                                                             <i class="bi bi-database me-1"></i>
@@ -266,8 +281,15 @@
                                                                                             <%= image.base_image %>
                                                                                         </h6>
                                                                                         <div class="mb-1">
-                                                                                            <span class="badge bg-primary" style="font-size: 0.7rem;">
-                                                                                                <i class="bi bi-tag-fill me-1"></i>
+                                                                                            <span class="badge bg-primary version-badge" 
+                                                                                                style="font-size: 0.7rem; font-weight: normal; white-space: nowrap; display: inline-block; 
+                                                                                                line-height: 1.1; max-width: calc(90% - 15px); overflow: hidden; text-overflow: ellipsis; 
+                                                                                                text-align: left; padding: 0.2em 0.4em; margin-right: 5px; cursor: help;"
+                                                                                                data-bs-toggle="tooltip" 
+                                                                                                data-bs-placement="top" 
+                                                                                                data-bs-custom-class="custom-tooltip"
+                                                                                                title="<%= image.version %>">
+                                                                                                <i class="bi bi-info-circle me-1"></i>
                                                                                                 <%= image.version %>
                                                                                             </span>
                                                                                         </div>
@@ -279,7 +301,7 @@
                                                                                     -webkit-box-orient: vertical; overflow: hidden;">
                                                                                     <%= image.description %>
                                                                                 </p>
-                                                                                <% if (image.database_server) { %>
+                                                                                <% if (image.database_server && image.database_server.trim() !== '' && image.database_server !== 'null' && image.database_server !== 'none') { %>
                                                                                     <div class="mt-1">
                                                                                         <span class="badge bg-info" style="font-size: 0.7rem;">
                                                                                             <i class="bi bi-database me-1"></i>

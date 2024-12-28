@@ -284,6 +284,32 @@ class PublishController {
         } else {
             console.error('Form element not found in initializeEventListeners');
         }
+
+        // Add base image search functionality
+        const baseImageSearch = document.getElementById('baseImageSearch');
+        if (baseImageSearch) {
+            baseImageSearch.addEventListener('input', this.handleBaseImageSearch.bind(this));
+            // Trigger initial state
+            this.handleBaseImageSearch({ target: baseImageSearch });
+        }
+    }
+
+    handleBaseImageSearch(event) {
+        const searchTerm = event.target.value.toLowerCase().trim();
+        const baseImageCards = document.querySelectorAll('.base-image-card');
+        
+        if (searchTerm === '') {
+            // When search is empty, show only first 5 cards
+            baseImageCards.forEach((card, index) => {
+                card.style.display = index < 5 ? '' : 'none';
+            });
+        } else {
+            // When searching, show all matching cards
+            baseImageCards.forEach(card => {
+                const title = card.getAttribute('data-name').toLowerCase();
+                card.style.display = title.includes(searchTerm) ? '' : 'none';
+            });
+        }
     }
 
     setupImagePreviews() {

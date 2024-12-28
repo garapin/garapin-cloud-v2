@@ -152,7 +152,7 @@
                                                 </div>
                                             </div>
                                             <div class="d-flex flex-wrap gap-2 mt-1">
-                                                <% if (image.database_server) { %>
+                                                <% if (image.database_server && image.database_server.trim() !== '' && image.database_server !== 'null' && image.database_server !== 'none') { %>
                                                     <span class="badge bg-info">
                                                         <span class="material-symbols-outlined" style="font-size: 14px; vertical-align: -2px;">database</span>
                                                         <%= image.database_server %>
