@@ -34,39 +34,70 @@
     <!-- TinyMCE -->
     <script src="https://cdn.tiny.cloud/1/dyxuypc6gq1q7giduzgshow05kyj1krbt13zb30lmk9v05c7/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
     <script>
-        // Initialize TinyMCE
-        window.addEventListener('DOMContentLoaded', () => {
-            tinymce.init({
-                selector: '#description',
-                plugins: 'anchor autolink charmap codesample emoticons image link lists media searchreplace table visualblocks wordcount',
-                toolbar: 'undo redo | blocks | bold italic underline strikethrough | link image media table | align lineheight | numlist bullist indent outdent | emoticons charmap | removeformat',
-                height: 500,
-                menubar: false,
-                statusbar: true,
-                branding: false,
-                skin: 'oxide',
-                content_css: 'default',
-                content_style: 'body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; font-size: 14px; }',
-                setup: function(editor) {
-                    editor.on('init', function() {
-                        // Set initial content if editing
-                        const textarea = document.getElementById('description');
-                        const initialContent = textarea ? textarea.value.trim() : '';
-                        if (initialContent) {
-                            editor.setContent(initialContent);
-                        }
-                    });
-                    editor.on('change', function() {
-                        editor.save(); // Save content back to textarea
-                    });
-                },
-                init_instance_callback: function(editor) {
-                    // Additional initialization if needed
-                    editor.on('LoadContent', function(e) {
-                        console.log('Editor content loaded');
-                    });
+        // Create a placeholder div for the editor
+        document.addEventListener('DOMContentLoaded', function() {
+            const editorContainer = document.createElement('div');
+            editorContainer.id = 'editor-container';
+            editorContainer.style.minHeight = '500px';
+            
+            const textarea = document.getElementById('description');
+            if (textarea) {
+                const initialContent = textarea.value;
+                textarea.style.display = 'none';
+                textarea.parentNode.insertBefore(editorContainer, textarea);
+            }
+        });
+
+        // Initialize TinyMCE after the page is fully loaded
+        window.addEventListener('load', function() {
+            const observer = new MutationObserver(function(mutations, obs) {
+                const editorContainer = document.getElementById('editor-container');
+                if (editorContainer) {
+                    obs.disconnect();
+                    initEditor(editorContainer);
                 }
             });
+
+            observer.observe(document.body, {
+                childList: true,
+                subtree: true
+            });
+
+            function initEditor(container) {
+                try {
+                    tinymce.init({
+                        target: container,
+                        plugins: 'anchor autolink charmap codesample emoticons image link lists media searchreplace table visualblocks wordcount',
+                        toolbar: 'undo redo | blocks | bold italic underline strikethrough | link image media table | align lineheight | numlist bullist indent outdent | emoticons charmap | removeformat',
+                        height: 500,
+                        resize: false,
+                        menubar: false,
+                        statusbar: false,
+                        branding: false,
+                        skin: 'oxide',
+                        setup: function(editor) {
+                            editor.on('init', function() {
+                                const textarea = document.getElementById('description');
+                                if (textarea && textarea.value) {
+                                    editor.setContent(textarea.value.trim());
+                                }
+                            });
+                            editor.on('change', function() {
+                                const textarea = document.getElementById('description');
+                                if (textarea) {
+                                    textarea.value = editor.getContent();
+                                }
+                            });
+                        }
+                    }).then(function() {
+                        console.log('TinyMCE initialized successfully');
+                    }).catch(function(error) {
+                        console.error('TinyMCE initialization error:', error);
+                    });
+                } catch (err) {
+                    console.error('Error initializing TinyMCE:', err);
+                }
+            }
         });
     </script>
     <%- include('partials/firebase-sdk') %>
@@ -117,9 +148,7 @@
 
                                     <div class="mb-3">
                                         <label for="description" class="form-label">Description</label>
-                                        <textarea class="form-control" id="description" rows="10" required>
-                                            <%= application ? application.description : '' %>
-                                        </textarea>
+                                        <textarea class="form-control" id="description" style="min-height: 500px; display: block;" required><%- application ? application.description : '' %></textarea>
                                     </div>
 
                                     <div class="mb-3">
