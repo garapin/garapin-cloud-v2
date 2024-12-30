@@ -1,6 +1,10 @@
 const mongoose = require('mongoose');
+const express = require('express');
+const router = express.Router();
 const Application = require('../../models/Application');
 const BaseImage = require('../../models/BaseImage');
+const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
+const admin = require('firebase-admin');
 const stringSimilarity = require('string-similarity');
 
 // Helper function to find similar base image
@@ -84,7 +88,8 @@ async function insertApplication(req, res) {
             id: mainBaseImage._id.toString(),
             name: mainBaseImage.base_image,
             database_server: mainBaseImage.database_server,
-            category_name: mainBaseImage.category_name
+            category_name: mainBaseImage.category_name,
+            thumbnailURL: mainBaseImage.thumbnailURL
         });
 
         // Initialize base_image array with the main base image
@@ -142,12 +147,12 @@ async function insertApplication(req, res) {
             .replace(/[^a-z0-9]+/g, '-')
             .replace(/(^-|-$)/g, '');
 
-        // Create new application using category_name from base image
+        // First create application without logo
         const application = new Application({
             title: mainBaseImage.base_image,
             slug: slug,
-            category: mainBaseImage.category_name || 'Development', // Default to 'Development' if not provided
-            description: mainBaseImage.description || `Base image for ${mainBaseImage.base_image}`,
+            category: mainBaseImage.category_name || 'Development',
+            description: mainBaseImage.long_description || mainBaseImage.description || `Base image for ${mainBaseImage.base_image}`,
             price: 0,
             support_detail: 'Garapin Cloud',
             status: 'Published',
@@ -164,22 +169,202 @@ async function insertApplication(req, res) {
             updated_at: new Date()
         });
 
-        const result = await application.save();
-        console.log('Application created successfully:', {
-            id: result._id.toString(),
-            title: result.title,
-            baseImages: result.base_image.map(id => id.toString()),
-            mainBaseImage: result.main_base_image.toString()
+        // Save application first to get the ID
+        const savedApp = await application.save();
+        console.log('Application created initially:', {
+            id: savedApp._id.toString(),
+            title: savedApp.title
         });
-        
-        res.status(201).json(result);
+
+        // Now handle logo upload with the correct application ID
+        let logo = null;
+        if (mainBaseImage.thumbnailURL) {
+            try {
+                console.log('\n=== Processing Logo ===');
+                console.log('Fetching logo from:', mainBaseImage.thumbnailURL);
+                
+                // Fetch the image
+                const response = await fetch(mainBaseImage.thumbnailURL);
+                if (!response.ok) throw new Error('Failed to fetch image');
+                const imageBuffer = await response.buffer();
+
+                // Generate unique filename and path using application ID
+                const fileName = `${mainBaseImage.base_image}-${Date.now()}.jpg`;
+                const iconPath = `applications/${savedApp._id}/icon/${fileName}`;
+                console.log('Uploading logo with path:', iconPath);
+
+                // Upload to Firebase Storage
+                const bucket = admin.storage().bucket();
+                const iconFileUpload = bucket.file(iconPath);
+                await iconFileUpload.save(imageBuffer);
+
+                // Get signed URL
+                const [iconUrl] = await iconFileUpload.getSignedUrl({
+                    action: 'read',
+                    expires: '03-01-2500'
+                });
+
+                console.log('Logo uploaded successfully:', iconUrl);
+
+                logo = {
+                    url: iconUrl,
+                    name: fileName
+                };
+
+                // Update the application with the logo
+                const updatedApp = await Application.findByIdAndUpdate(
+                    savedApp._id,
+                    { logo: logo },
+                    { new: true }
+                );
+
+                console.log('Application updated with logo:', {
+                    id: updatedApp._id.toString(),
+                    title: updatedApp.title,
+                    logo: updatedApp.logo
+                });
+
+                // Use the updated application as our result
+                savedApp = updatedApp;
+            } catch (error) {
+                console.warn('Failed to process logo:', error.message);
+                // Continue with the application without logo if upload fails
+            }
+        }
+
+        res.status(201).json(savedApp);
     } catch (error) {
         console.error('Error creating application:', error.message);
         res.status(500).json({ error: error.message });
     }
 }
 
-module.exports = {
-    insertApplication,
-    findSimilarBaseImage
-}; 
+async function updateApplicationsByBaseImage(req, res) {
+    console.log('\n=== updateApplicationsByBaseImage ===');
+    console.log('Request body:', JSON.stringify(req.body, null, 2));
+
+    try {
+        const { baseImageId, userId } = req.body;
+
+        if (!baseImageId) {
+            console.error('baseImageId is required');
+            return res.status(400).json({ error: 'baseImageId is required' });
+        }
+
+        // Find the base image first to ensure it exists
+        const baseImage = await BaseImage.findById(baseImageId);
+        if (!baseImage) {
+            console.error('Base image not found:', baseImageId);
+            return res.status(404).json({ error: 'Base image not found' });
+        }
+
+        console.log('Found base image:', {
+            id: baseImage._id,
+            name: baseImage.base_image,
+            description: baseImage.description,
+            database_server: baseImage.database_server
+        });
+
+        // Find all applications that use this base image
+        const applications = await Application.find({
+            $or: [
+                { main_base_image: baseImageId },
+                { base_image: baseImageId }
+            ]
+        });
+
+        console.log(`Found ${applications.length} applications using this base image`);
+
+        // Update each application
+        const updatePromises = applications.map(async (app) => {
+            // Prepare new base_image array
+            let newBaseImages = [baseImageId]; // Start with the rebuilt base image
+
+            // If the base image requires a database, find and add the database image
+            if (baseImage.database_server && 
+                !['None*', 'N/A', 'null', 'None Required', 'none', 'None required'].includes(baseImage.database_server?.toLowerCase())) {
+                
+                console.log('Looking for database image:', baseImage.database_server);
+                const databaseImage = await BaseImage.findOne({
+                    base_image: { $regex: new RegExp(baseImage.database_server, 'i') }
+                });
+
+                if (databaseImage) {
+                    console.log('Found database image:', {
+                        id: databaseImage._id,
+                        name: databaseImage.base_image
+                    });
+                    newBaseImages.push(databaseImage._id);
+                }
+            }
+
+            // Prepare update data
+            const updateData = {
+                updated_at: new Date(),
+                base_image: newBaseImages, // Update base_image array
+                main_base_image: baseImageId // Always update main_base_image to the rebuilt image
+            };
+
+            // Update title and description if this was previously the main base image
+            if (app.main_base_image.toString() === baseImageId) {
+                updateData.title = baseImage.base_image;
+                updateData.description = baseImage.long_description || baseImage.description || `Base image for ${baseImage.base_image}`;
+                updateData.category = baseImage.category_name || 'Development';
+            }
+
+            console.log('Updating application with data:', {
+                id: app._id,
+                updateData
+            });
+
+            // Update the application
+            const updatedApp = await Application.findByIdAndUpdate(
+                app._id,
+                { $set: updateData },
+                { new: true }
+            );
+
+            console.log('Updated application:', {
+                id: updatedApp._id,
+                title: updatedApp.title,
+                description: updatedApp.description,
+                status: updatedApp.status,
+                base_image: updatedApp.base_image,
+                main_base_image: updatedApp.main_base_image
+            });
+
+            return updatedApp;
+        });
+
+        // Wait for all updates to complete
+        const updatedApps = await Promise.all(updatePromises);
+
+        console.log('Successfully updated applications:', {
+            count: updatedApps.length,
+            appIds: updatedApps.map(app => app._id)
+        });
+
+        res.json({
+            message: 'Applications updated successfully',
+            updatedCount: updatedApps.length,
+            applications: updatedApps.map(app => ({
+                id: app._id,
+                title: app.title,
+                description: app.description,
+                status: app.status,
+                base_image: app.base_image,
+                main_base_image: app.main_base_image
+            }))
+        });
+
+    } catch (error) {
+        console.error('Error updating applications:', error);
+        res.status(500).json({ error: error.message });
+    }
+}
+
+// Define routes
+router.post('/insert', insertApplication);
+router.post('/update-by-base-image', updateApplicationsByBaseImage);
+
+module.exports = router; 

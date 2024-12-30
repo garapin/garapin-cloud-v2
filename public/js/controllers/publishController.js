@@ -22,8 +22,12 @@ class PublishController {
         this.selectedBaseImages = new Set();
         this.mainBaseImageId = null;
         
+        // Initialize base image handling
+        this.initializeBaseImageSearch();
+        this.initializeBaseImageCards();
+
+        // Initialize form and editor
         this.initializeForm();
-        this.initializeBaseImageHandlers();
         this.initializeTinyMCE();
 
         console.log('PublishController constructor completed');
@@ -41,6 +45,16 @@ class PublishController {
             .base-image-card.selected {
                 background-color: #e9ecef;
                 transform: scale(0.98);
+            }
+            .selected-base-image {
+                transition: all 0.3s ease;
+            }
+            .selected-base-image.highlight {
+                background-color: rgba(108, 125, 255, 0.1);
+                transform: scale(1.02);
+            }
+            .selected-base-image.highlight .card {
+                border-color: #6C7DFF;
             }
             .base-images-scroll::-webkit-scrollbar {
                 height: 8px;
@@ -596,5 +610,276 @@ class PublishController {
 
     initializeTinyMCE() {
         // ... rest of the TinyMCE initialization ...
+    }
+
+    // Handle base image card click
+    handleBaseImageCardClick(card) {
+        console.log('Base image card clicked:', card.dataset);
+        const baseImageId = card.dataset.id;
+        const baseImageName = card.dataset.name;
+        const baseImageVersion = card.dataset.version;
+        const baseImageThumbnail = card.dataset.thumbnail;
+        const baseImageDescription = card.dataset.description;
+        const baseImageDatabase = card.dataset.database;
+
+        // Check if this base image is already selected
+        const existingImage = document.querySelector(`.selected-base-image[data-id="${baseImageId}"]`);
+        if (existingImage) {
+            // If already selected, highlight it briefly and scroll to it
+            existingImage.classList.add('highlight');
+            existingImage.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            setTimeout(() => existingImage.classList.remove('highlight'), 1000);
+            return;
+        }
+
+        // Create new selected base image element
+        const selectedBaseImagesContainer = document.getElementById('selectedBaseImages');
+        const newSelectedImage = document.createElement('div');
+        newSelectedImage.className = 'col-12 selected-base-image';
+        newSelectedImage.dataset.id = baseImageId;
+
+        // Generate HTML for the selected base image
+        const thumbnailHtml = baseImageThumbnail ? 
+            `<img src="${baseImageThumbnail}" alt="${baseImageName}" class="me-3" style="width: 48px; height: 48px; object-fit: contain;">` :
+            `<div class="d-flex align-items-center justify-content-center me-3" style="height: 48px; width: 48px; background-color: #f8f9fa; border-radius: 8px;">
+                <span class="display-6 text-muted" style="font-size: 1.5rem;">${baseImageName.charAt(0).toUpperCase()}</span>
+            </div>`;
+
+        newSelectedImage.innerHTML = `
+            <div class="card">
+                <div class="card-body p-3">
+                    <div class="d-flex align-items-start">
+                        ${thumbnailHtml}
+                        <div class="flex-grow-1">
+                            <h6 class="mb-1">${baseImageName}</h6>
+                            <div class="mb-1">
+                                <span class="badge bg-primary" style="font-size: 0.7rem;">
+                                    <i class="bi bi-tag-fill me-1"></i>
+                                    ${baseImageVersion}
+                                </span>
+                                ${baseImageDatabase ? `
+                                    <span class="badge bg-info ms-1" style="font-size: 0.7rem;">
+                                        <i class="bi bi-database me-1"></i>
+                                        ${baseImageDatabase}
+                                    </span>
+                                ` : ''}
+                            </div>
+                            <p class="text-muted mb-0" style="font-size: 0.8rem; line-height: 1.2;">
+                                ${baseImageDescription || ''}
+                            </p>
+                        </div>
+                        <div class="d-flex align-items-center gap-2 ms-2">
+                            <div class="form-check">
+                                <input class="form-check-input main-base-image-radio" 
+                                    type="radio" 
+                                    name="mainBaseImage" 
+                                    value="${baseImageId}">
+                                <label class="form-check-label">Main</label>
+                            </div>
+                            <button type="button" class="btn btn-outline-danger btn-sm remove-base-image">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // Add to selected base images container
+        selectedBaseImagesContainer.appendChild(newSelectedImage);
+
+        // If this is the first base image, automatically set it as main
+        const mainRadios = document.querySelectorAll('.main-base-image-radio');
+        if (mainRadios.length === 1) {
+            mainRadios[0].checked = true;
+            this.mainBaseImageId = baseImageId;
+        }
+
+        // Add event listeners for the new elements
+        const removeButton = newSelectedImage.querySelector('.remove-base-image');
+        if (removeButton) {
+            removeButton.addEventListener('click', () => {
+                newSelectedImage.remove();
+                // Show error if no base images are selected
+                const selectedImages = document.querySelectorAll('.selected-base-image');
+                if (selectedImages.length === 0) {
+                    document.getElementById('baseImageError').style.display = 'block';
+                }
+            });
+        }
+
+        const mainRadio = newSelectedImage.querySelector('.main-base-image-radio');
+        if (mainRadio) {
+            mainRadio.addEventListener('change', () => {
+                this.mainBaseImageId = baseImageId;
+                document.getElementById('baseImageError').style.display = 'none';
+            });
+        }
+
+        // Hide error message if it was shown
+        document.getElementById('baseImageError').style.display = 'none';
+
+        // Add selection effect to the card
+        card.classList.add('selected');
+        setTimeout(() => card.classList.remove('selected'), 200);
+
+        console.log('Added base image:', baseImageId);
+    }
+
+    // Initialize controls for a selected base image
+    initializeBaseImageControls(container) {
+        // Remove button
+        const removeButton = container.querySelector('.remove-base-image');
+        if (removeButton) {
+            removeButton.addEventListener('click', () => {
+                container.remove();
+                // Show error if no base images are selected
+                const selectedImages = document.querySelectorAll('.selected-base-image');
+                if (selectedImages.length === 0) {
+                    document.getElementById('baseImageError').style.display = 'block';
+                }
+            });
+        }
+
+        // Main radio button
+        const mainRadio = container.querySelector('.main-base-image-radio');
+        if (mainRadio) {
+            mainRadio.addEventListener('change', () => {
+                document.getElementById('baseImageError').style.display = 'none';
+            });
+        }
+    }
+
+    // Get selected base images data for form submission
+    getSelectedBaseImagesData() {
+        const selectedImages = document.querySelectorAll('.selected-base-image');
+        const baseImages = [];
+        let mainBaseImageId = null;
+
+        selectedImages.forEach(image => {
+            const imageId = image.dataset.id;
+            baseImages.push(imageId);
+
+            const mainRadio = image.querySelector('.main-base-image-radio');
+            if (mainRadio && mainRadio.checked) {
+                mainBaseImageId = imageId;
+            }
+        });
+
+        return {
+            baseImages,
+            mainBaseImageId
+        };
+    }
+
+    // Validate base images selection
+    validateBaseImages() {
+        const { baseImages, mainBaseImageId } = this.getSelectedBaseImagesData();
+        if (baseImages.length === 0 || !mainBaseImageId) {
+            document.getElementById('baseImageError').style.display = 'block';
+            return false;
+        }
+        return true;
+    }
+
+    // Initialize base image cards
+    initializeBaseImageCards() {
+        const baseImageCards = document.querySelectorAll('.base-image-card');
+        baseImageCards.forEach(card => {
+            card.addEventListener('click', () => this.handleBaseImageCardClick(card));
+        });
+    }
+
+    // Initialize base image search
+    initializeBaseImageSearch() {
+        const searchInput = document.getElementById('baseImageSearch');
+        if (searchInput) {
+            searchInput.addEventListener('input', (e) => {
+                const searchTerm = e.target.value.toLowerCase();
+                const cards = document.querySelectorAll('.base-image-card');
+                
+                cards.forEach(card => {
+                    const name = card.dataset.name.toLowerCase();
+                    const description = card.dataset.description.toLowerCase();
+                    const version = card.dataset.version.toLowerCase();
+                    const database = (card.dataset.database || '').toLowerCase();
+                    
+                    const matches = name.includes(searchTerm) || 
+                                  description.includes(searchTerm) || 
+                                  version.includes(searchTerm) ||
+                                  database.includes(searchTerm);
+                    
+                    card.style.display = matches ? '' : 'none';
+                });
+            });
+        }
+    }
+
+    async handleFormSubmit(event) {
+        event.preventDefault();
+
+        // Validate base images
+        if (!this.validateBaseImages()) {
+            return;
+        }
+
+        const form = event.target;
+        const isEdit = form.dataset.edit === 'true';
+        const appId = form.dataset.appId;
+
+        try {
+            // Get current user
+            const user = firebase.auth().currentUser;
+            if (!user) {
+                throw new Error('User not authenticated');
+            }
+
+            // Get base images data
+            const { baseImages, mainBaseImageId } = this.getSelectedBaseImagesData();
+            if (baseImages.length === 0 || !mainBaseImageId) {
+                throw new Error('Please select at least one base image and designate a main base image');
+            }
+
+            // Prepare form data
+            const formData = {
+                title: document.getElementById('appName').value,
+                description: document.getElementById('description').value,
+                support_detail: document.getElementById('support_detail').value,
+                price: parseInt(document.getElementById('price').value) || 0,
+                category: document.getElementById('category').value,
+                status: document.getElementById('statusSwitch').checked ? 'Published' : 'Draft',
+                base_image: baseImages,
+                main_base_image: mainBaseImageId
+            };
+
+            // Get the token
+            const token = await user.getIdToken(true);
+
+            // Send the request
+            const response = await fetch(isEdit ? `/api/applications/${appId}` : '/api/applications/insert', {
+                method: isEdit ? 'PUT' : 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(formData)
+            });
+
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.message || 'Failed to save application');
+            }
+
+            const result = await response.json();
+            console.log('Application saved:', result);
+
+            // Redirect to applications page
+            window.location.href = '/applications';
+
+        } catch (error) {
+            console.error('Error saving application:', error);
+            // Show error to user
+            alert(error.message || 'Failed to save application');
+        }
     }
 } 

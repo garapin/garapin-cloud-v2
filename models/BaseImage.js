@@ -33,6 +33,10 @@ const baseImageSchema = new mongoose.Schema({
         type: String,
         required: true
     },
+    long_description: {
+        type: String,
+        default: ''
+    },
     version: {
         type: String,
         required: true

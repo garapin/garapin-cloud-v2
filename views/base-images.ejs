@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Garapin Cloud - Base Images</title>
+    <!-- Use allowed CDN (jsdelivr) -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
@@ -24,54 +25,75 @@
     </style>
     <%- include('partials/firebase-sdk') %>
     <script>
-        document.addEventListener('DOMContentLoaded', async function() {
-            const firebaseConfig = JSON.parse(document.querySelector('[data-firebase-config]').dataset.firebaseConfig);
-            if (!firebase.apps?.length) {
-                firebase.initializeApp(firebaseConfig);
-            }
+        // Simple Firebase initialization
+        function initFirebase() {
+            const configElement = document.querySelector('[data-firebase-config]');
+            if (!configElement) return null;
+            
+            const firebaseConfig = JSON.parse(configElement.dataset.firebaseConfig);
+            return firebase.apps.length ? firebase.apps[0] : firebase.initializeApp(firebaseConfig);
+        }
 
-            // Get current user and token
-            const user = firebase.auth().currentUser;
-            if (!user) {
-                // Wait for auth state to be ready
+        // Main initialization
+        async function initialize() {
+            try {
+                // Initialize Firebase
+                const app = initFirebase();
+                if (!app) {
+                    console.warn('Firebase initialization failed');
+                    return;
+                }
+
+                // Setup auth state listener
                 firebase.auth().onAuthStateChanged(async function(user) {
                     if (user) {
-                        const token = await user.getIdToken();
-                        // Fetch the page with auth header
-                        const response = await fetch(window.location.pathname, {
-                            headers: {
-                                'Authorization': `Bearer ${token}`
-                            }
-                        });
-                        if (response.ok) {
-                            const html = await response.text();
-                            // Create a temporary container
-                            const temp = document.createElement('div');
-                            temp.innerHTML = html;
-                            
-                            // Only update the baseImagesContainer content
-                            const newContent = temp.querySelector('#baseImagesContainer');
-                            const currentContent = document.querySelector('#baseImagesContainer');
-                            if (newContent && currentContent) {
-                                currentContent.innerHTML = newContent.innerHTML;
-                            }
-
-                            // Initialize tooltips for the new content
-                            var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-                            var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
-                                return new bootstrap.Tooltip(tooltipTriggerEl);
+                        try {
+                            const token = await user.getIdToken();
+                            // Fetch the page with auth header
+                            const response = await fetch(window.location.pathname, {
+                                headers: {
+                                    'Authorization': `Bearer ${token}`
+                                }
                             });
+                            if (response.ok) {
+                                const html = await response.text();
+                                // Create a temporary container
+                                const temp = document.createElement('div');
+                                temp.innerHTML = html;
+                                
+                                // Only update the baseImagesContainer content
+                                const newContent = temp.querySelector('#baseImagesContainer');
+                                const currentContent = document.querySelector('#baseImagesContainer');
+                                if (newContent && currentContent) {
+                                    currentContent.innerHTML = newContent.innerHTML;
+                                    initializeTooltips();
+                                }
+                            }
+                        } catch (error) {
+                            console.warn('Error refreshing content:', error);
                         }
                     }
                 });
-            }
-        });
 
-        // Initialize tooltips after page load
-        var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-        var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
-            return new bootstrap.Tooltip(tooltipTriggerEl);
-        });
+                // Initialize tooltips
+                initializeTooltips();
+            } catch (error) {
+                console.warn('Initialization error:', error);
+            }
+        }
+
+        // Initialize tooltips
+        function initializeTooltips() {
+            const tooltipTriggerList = document.querySelectorAll('[data-bs-toggle="tooltip"]');
+            [...tooltipTriggerList].forEach(el => new bootstrap.Tooltip(el));
+        }
+
+        // Start initialization when DOM is ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initialize);
+        } else {
+            initialize();
+        }
     </script>
 </head>
 <body>
@@ -124,10 +146,10 @@
                                                         <img src="<%= image.thumbnailURL %>" alt="<%= image.base_image %>" 
                                                             class="img-fluid" style="height: 60px; width: 100%; object-fit: contain;">
                                                     <% } else { %>
-                                                        <div class="d-flex align-items-center justify-content-center" 
+                                                        <div class="d-flex justify-content-center align-items-center" 
                                                             style="height: 60px; width: 100%; background-color: #f8f9fa; border-radius: 8px;">
                                                             <span class="display-6 text-muted">
-                                                                <%= image.base_image.charAt(0).toUpperCase() %>
+                                                                <%= image && image.base_image ? image.base_image.charAt(0).toUpperCase() : '' %>
                                                             </span>
                                                         </div>
                                                     <% } %>
@@ -165,11 +187,12 @@
                                                 if (user && user.provider_uid === image.user_id) { 
                                             %>
                                                 <div class="mt-2">
-                                                    <button class="btn btn-sm" 
+                                                    <button class="btn btn-sm rebuild-btn" 
                                                         style="background-color: white; color: #6C7DFF; border: 1px solid #6C7DFF; transition: all 0.3s;"
                                                         onmouseover="this.style.backgroundColor='#6C7DFF'; this.style.color='white';"
                                                         onmouseout="this.style.backgroundColor='white'; this.style.color='#6C7DFF';"
-                                                        onclick="redeployImage('<%= image.base_image %>')">
+                                                        data-image='<%- JSON.stringify({_id:image._id,base_image:image.base_image,version:image.version,StorageSize:image.StorageSize || "1Gi"}) %>'
+                                                        onclick="console.log('Button clicked', this.dataset.image); handleRebuildClick.call(this);">
                                                         <i class="bi bi-arrow-clockwise me-1"></i>
                                                         Rebuild
                                                     </button>
@@ -201,6 +224,22 @@
             <div class="d-flex">
                 <div class="toast-body"></div>
                 <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Modal -->
+    <div class="modal fade" id="loadingModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-labelledby="loadingModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-body text-center p-4">
+                    <div class="mb-3">
+                        <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
+                    <h5 id="loadingModalMessage" class="mb-0">Image is rebuilding, please wait...</h5>
+                </div>
             </div>
         </div>
     </div>

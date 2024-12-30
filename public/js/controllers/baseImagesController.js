@@ -72,6 +72,154 @@ async function validateBaseImage(baseImageName) {
     }
 }
 
+// Function to handle redeploy of base image
+async function redeployImage(baseImageData, buttonElement) {
+    // Store original button content at the top level of the function
+    const originalContent = buttonElement.innerHTML;
+    let loadingModal = null;
+
+    try {
+        console.log('Starting redeploy process...', baseImageData);
+        
+        // Get current user first
+        const currentUser = firebase.auth().currentUser;
+        if (!currentUser) throw new Error('User not authenticated');
+
+        // Initialize modal
+        const loadingModalElement = document.getElementById('loadingModal');
+        if (!loadingModalElement) throw new Error('Loading modal not found');
+        
+        loadingModal = bootstrap.Modal.getOrCreateInstance(loadingModalElement);
+        
+        // Disable button and show loading state
+        buttonElement.disabled = true;
+        buttonElement.innerHTML = '<i class="bi bi-arrow-repeat spin me-1"></i>Rebuilding...';
+        
+        // Show loading modal
+        document.getElementById('loadingModalMessage').textContent = 'Image is rebuilding, please wait...';
+        loadingModal.show();
+
+        console.log('Base image details for redeploy:', baseImageData);
+
+        // Prepare request body using passed data
+        const requestBody = {
+            appName: baseImageData.base_image.substring(0, 4),
+            base_image_name: baseImageData.base_image,
+            imageSource: baseImageData.version.split(':')[0],
+            version: baseImageData.version,
+            StorageSize: baseImageData.StorageSize || "1Gi",
+            user_id: currentUser.uid,
+            base_images_id: baseImageData._id  // Reuse existing ID
+        };
+
+        console.log('Sending redeploy request:', requestBody);
+
+        // Get the CREATE_BASE_IMAGE_AI_URL from the modal's data attribute
+        const createUrl = document.getElementById('aiBuilderModal').dataset.createUrl;
+        
+        const redeployResponse = await fetch(createUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'garapin-cloud-frontend': '881b5b63f7ad48def15bee384e3af18eec73f46b96aea65bd79a7c975c92c928'
+            },
+            body: JSON.stringify(requestBody)
+        });
+
+        if (!redeployResponse.ok) {
+            const errorData = await redeployResponse.json();
+            throw new Error(errorData.error || 'Failed to redeploy base image');
+        }
+
+        const result = await redeployResponse.json();
+        console.log('Redeploy response:', result);
+
+        // Check if rebuild was successful
+        // The API returns an array with the rebuild details
+        if (Array.isArray(result) && result.length > 0) {
+            // Get token for authentication
+            const token = await currentUser.getIdToken(true);
+
+            // Update loading message
+            document.getElementById('loadingModalMessage').textContent = 'Updating associated applications...';
+
+            // Update applications that use this base image
+            const updateResponse = await fetch('/api/applications/update-by-base-image', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    baseImageId: baseImageData._id,
+                    userId: currentUser.uid
+                })
+            });
+
+            if (!updateResponse.ok) {
+                const updateError = await updateResponse.json();
+                throw new Error(updateError.error || 'Failed to update applications');
+            }
+
+            const updateResult = await updateResponse.json();
+            console.log('Applications update result:', updateResult);
+
+            // Update modal message and close after delay
+            document.getElementById('loadingModalMessage').textContent = 
+                `Base image rebuild completed successfully! Updated ${updateResult.updatedCount} application(s).`;
+            setTimeout(() => {
+                loadingModal.hide();
+                window.location.reload();
+            }, 1500);
+        } else {
+            console.error('Invalid rebuild response:', result);
+            throw new Error('Base image rebuild response was not in the expected format. Please check the logs for details.');
+        }
+
+    } catch (error) {
+        console.error('Error redeploying base image:', error);
+        
+        // Show error in modal and close after delay
+        if (loadingModal) {
+            document.getElementById('loadingModalMessage').textContent = `Error: ${error.message}`;
+            document.getElementById('loadingModalMessage').style.color = '#dc3545';
+            setTimeout(() => {
+                loadingModal.hide();
+                // Reset modal style for next use
+                document.getElementById('loadingModalMessage').style.color = '';
+            }, 3000);
+        }
+        
+        // Reset button state
+        buttonElement.disabled = false;
+        buttonElement.innerHTML = originalContent;
+    }
+}
+
+// Handler function for rebuild button clicks
+window.handleRebuildClick = function() {
+    console.log('handleRebuildClick called');
+    try {
+        const imageData = JSON.parse(this.dataset.image);
+        console.log('Rebuild clicked with data:', imageData);
+        redeployImage(imageData, this);
+    } catch (error) {
+        console.error('Error handling rebuild click:', error);
+    }
+}
+
+// Function to initialize rebuild buttons
+function initializeRebuildButtons() {
+    console.log('Initializing rebuild buttons');
+    document.querySelectorAll('.rebuild-btn').forEach(button => {
+        console.log('Found rebuild button:', button.dataset.image);
+        // Remove existing listener if any
+        button.removeEventListener('click', handleRebuildClick);
+        // Add new listener
+        button.addEventListener('click', handleRebuildClick);
+    });
+}
+
 // Add event listener after document is loaded
 document.addEventListener('DOMContentLoaded', function() {
     // Handle base image input
@@ -95,6 +243,9 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
     }
+
+    // Initialize rebuild buttons
+    initializeRebuildButtons();
 
     // Initialize tooltips
     const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
@@ -136,12 +287,23 @@ function handleSearch(event) {
 
 async function insertApplication(baseImageId, userId, publisherId) {
     try {
+        // Validate inputs
+        if (!baseImageId) {
+            throw new Error('baseImageId is required for insertApplication');
+        }
+        if (!userId) {
+            throw new Error('userId is required for insertApplication');
+        }
+        if (!publisherId) {
+            throw new Error('publisherId is required for insertApplication');
+        }
+
         const token = await firebase.auth().currentUser.getIdToken(true);
 
-        console.log('Inserting application with:', {
-            baseImageId,
-            userId,
-            publisherId
+        console.log('Inserting application with validated params:', {
+            baseImageId: baseImageId,
+            userId: userId,
+            publisherId: publisherId
         });
 
         const response = await fetch('/api/applications/insert', {
@@ -151,25 +313,39 @@ async function insertApplication(baseImageId, userId, publisherId) {
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
-                baseImageId,
-                userId,
-                publisherId
+                baseImageId: baseImageId,
+                userId: userId,
+                publisherId: publisherId
             })
         });
 
+        const responseData = await response.json();
+        
         if (!response.ok) {
-            const error = await response.json();
-            console.error('Server error:', error);
-            throw new Error(error.message || 'Failed to insert application');
+            console.error('Server error response:', responseData);
+            throw new Error(responseData.error || 'Failed to insert application');
         }
 
-        const result = await response.json();
-        console.log('Application inserted successfully:', result);
-        return result;
+        console.log('Application inserted successfully:', responseData);
+        return responseData;
     } catch (error) {
-        console.error('Error inserting application:', error);
+        console.error('Error in insertApplication:', error);
+        console.error('Error details:', {
+            baseImageId: baseImageId,
+            userId: userId,
+            publisherId: publisherId
+        });
         throw error;
     }
+}
+
+// Function to generate MongoDB-style ObjectId
+function generateObjectId() {
+    const timestamp = Math.floor(new Date().getTime() / 1000).toString(16);
+    const machineId = Math.floor(Math.random() * 16777216).toString(16).padStart(6, '0');
+    const processId = Math.floor(Math.random() * 65536).toString(16).padStart(4, '0');
+    const counter = Math.floor(Math.random() * 16777216).toString(16).padStart(6, '0');
+    return timestamp + machineId + processId + counter;
 }
 
 // Handle building a base image
@@ -203,14 +379,18 @@ async function buildImage() {
         if (!currentUser) throw new Error('User not authenticated');
         const token = await currentUser.getIdToken(true);
 
+        const generatedId = generateObjectId();
         const requestBody = {
             appName: baseImageName.substring(0, 4),
             base_image_name: baseImageName,
             imageSource: imageSource,
             version: fullVersion,
             StorageSize: parseInt(storageSize) + "Gi",
-            user_id: currentUser.uid
+            user_id: currentUser.uid,
+            base_images_id: generatedId
         };
+
+        console.log('Sending request to CREATE_BASE_IMAGE_AI_URL:', requestBody);
 
         const response = await fetch(createUrl, {
             method: 'POST',
@@ -227,7 +407,17 @@ async function buildImage() {
         }
 
         const baseImageResult = await response.json();
-        console.log('Base image created:', baseImageResult);
+        console.log('Base image API response:', {
+            fullResponse: baseImageResult,
+            generatedId: generatedId
+        });
+
+        // Use the generated ID since we know this is the ID that will be used in the database
+        const baseImageId = generatedId;
+        if (!baseImageId) {
+            console.error('Base image response structure:', baseImageResult);
+            throw new Error('Base image ID is missing from the response');
+        }
 
         const userResponse = await fetch('/auth/user', {
             method: 'POST',
@@ -241,11 +431,23 @@ async function buildImage() {
         });
         const userData = await userResponse.json();
 
-        console.log('Base image created:', baseImageResult);
         console.log('User data:', userData);
 
+        // Debug logging
+        console.log('Values for insertApplication:', {
+            baseImageId: baseImageId,
+            baseImageResult: baseImageResult,
+            userId: currentUser.uid,
+            publisherId: userData.user._id,
+            userData: userData
+        });
+
+        if (!userData.user._id) {
+            throw new Error('Publisher ID is missing from user data');
+        }
+
         const applicationResult = await insertApplication(
-            baseImageResult._id,
+            baseImageId,
             currentUser.uid,
             userData.user._id
         );
@@ -267,7 +469,7 @@ async function buildImage() {
 }
 
 // Show toast notification
-function showToast(message, type = 'info') {
+function showToast(message, type = 'info', autoHide = true) {
     const toast = document.getElementById('baseImageToast');
     const toastBody = toast.querySelector('.toast-body');
     
@@ -286,9 +488,11 @@ function showToast(message, type = 'info') {
     }
     
     const bsToast = new bootstrap.Toast(toast, {
-        delay: type === 'error' ? 5000 : 3000
+        delay: autoHide ? (type === 'error' ? 5000 : 3000) : Infinity,
+        autohide: autoHide
     });
     bsToast.show();
+    return bsToast;
 }
 
 // Add CSS for spinner

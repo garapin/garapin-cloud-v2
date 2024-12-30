@@ -1208,8 +1208,8 @@ app.get('/api/base-images/:name', async (req, res) => {
 // Delete base image by ID
 app.delete('/api/base-images/:id', baseImageController.deleteBaseImage);
 
-// Add new endpoint for application insertion
-app.post('/api/applications/insert', verifyToken, applicationController.insertApplication);
+// Applications backend routes (all application routes are handled here)
+app.use('/api/applications', verifyToken, require('./controllers/backend/applications-backend'));
 
 const PORT = 8000;
 app.listen(PORT, () => {
