@@ -20,6 +20,8 @@ const categoryController = require('./controllers/categoryController');
 const Category = require('./models/Category');
 const InstalledApp = require('./models/InstalledApp');
 const BaseImage = require('./models/BaseImage');
+const applicationController = require('./controllers/backend/applications-backend');
+const baseImageController = require('./controllers/backend/base-images-backend');
 
 const app = express();
 
@@ -527,85 +529,8 @@ app.get('/base-images', async (req, res) => {
 });
 
 // Docker Hub Validation Endpoint
-app.get('/api/docker-hub/validate/:image/:tag', async (req, res) => {
-    try {
-        const { image, tag } = req.params;
-        
-        // List of common organizations to check
-        const organizations = [
-            'library',  // Official images
-            '',         // Default namespace
-            'bitnami'   // Bitnami images
-        ];
-
-        // Try each organization
-        for (const org of organizations) {
-            const prefix = org ? `${org}/` : '';
-            const url = `https://hub.docker.com/v2/repositories/${prefix}${image}/tags/${tag}`;
-            
-            try {
-                console.log('Trying URL:', url);
-                const response = await fetch(url, {
-                    method: 'GET',
-                    headers: {
-                        'Accept': 'application/json'
-                    },
-                    timeout: 5000
-                });
-
-                if (response.ok) {
-                    const data = await response.json();
-                    // If we found the image in any organization, consider it valid
-                    return res.json({
-                        name: tag,
-                        full_name: `${prefix}${image}`,
-                        images: [{
-                            architecture: 'arm64',
-                            variant: 'v8'
-                        }]
-                    });
-                }
-            } catch (fetchError) {
-                console.error(`Fetch error for ${url}:`, fetchError);
-                // Continue to next organization if there's an error
-                continue;
-            }
-        }
-
-        // If we get here, try searching in Docker Hub
-        const searchUrl = `https://hub.docker.com/v2/repositories/${image}`;
-        try {
-            const searchResponse = await fetch(searchUrl, {
-                method: 'GET',
-                headers: {
-                    'Accept': 'application/json'
-                },
-                timeout: 5000
-            });
-
-            if (searchResponse.ok) {
-                // Image exists in its own namespace
-                return res.json({
-                    name: tag,
-                    full_name: image,
-                    images: [{
-                        architecture: 'arm64',
-                        variant: 'v8'
-                    }]
-                });
-            }
-        } catch (searchError) {
-            console.error('Search error:', searchError);
-        }
-
-        // If we get here, the image was not found anywhere
-        return res.status(404).json({ error: 'Image not found' });
-
-    } catch (error) {
-        console.error('Docker Hub validation error:', error);
-        res.status(500).json({ error: 'Failed to validate Docker image' });
-    }
-});
+app.get('/api/docker-hub/validate/:image/:tag', baseImageController.validateDockerImage);
+app.get('/api/docker-hub/search', baseImageController.searchDockerHub);
 
 app.get('/api/categories', categoryController.getAllCategories);
 app.post('/api/categories', categoryController.createCategory);
@@ -1281,39 +1206,10 @@ app.get('/api/base-images/:name', async (req, res) => {
 });
 
 // Delete base image by ID
-app.delete('/api/base-images/:id', async (req, res) => {
-    try {
-        // Get token from header
-        const token = req.headers.authorization?.split('Bearer ')[1];
-        if (!token) {
-            return res.status(401).json({ error: 'No token provided' });
-        }
+app.delete('/api/base-images/:id', baseImageController.deleteBaseImage);
 
-        // Verify token and get user
-        const decodedToken = await admin.auth().verifyIdToken(token);
-        const user = await User.findOne({ provider_uid: decodedToken.uid });
-        if (!user) {
-            return res.status(401).json({ error: 'User not found' });
-        }
-
-        // Find and verify base image ownership
-        const baseImage = await BaseImage.findById(req.params.id);
-        if (!baseImage) {
-            return res.status(404).json({ error: 'Base image not found' });
-        }
-
-        if (baseImage.user_id !== user.provider_uid) {
-            return res.status(403).json({ error: 'Not authorized to delete this base image' });
-        }
-
-        // Delete the base image
-        await BaseImage.findByIdAndDelete(req.params.id);
-        res.json({ message: 'Base image deleted successfully' });
-    } catch (error) {
-        console.error('Error deleting base image:', error);
-        res.status(500).json({ error: 'Failed to delete base image' });
-    }
-});
+// Add new endpoint for application insertion
+app.post('/api/applications/insert', verifyToken, applicationController.insertApplication);
 
 const PORT = 8000;
 app.listen(PORT, () => {
