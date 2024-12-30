@@ -15,8 +15,7 @@ const applicationSchema = new mongoose.Schema({
         name: String
     },
     category: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'Category',
+        type: String,
         required: true
     },
     description: String,

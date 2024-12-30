@@ -83,7 +83,8 @@ async function insertApplication(req, res) {
         console.log('Found main base image:', {
             id: mainBaseImage._id.toString(),
             name: mainBaseImage.base_image,
-            database_server: mainBaseImage.database_server
+            database_server: mainBaseImage.database_server,
+            category_name: mainBaseImage.category_name
         });
 
         // Initialize base_image array with the main base image
@@ -141,11 +142,11 @@ async function insertApplication(req, res) {
             .replace(/[^a-z0-9]+/g, '-')
             .replace(/(^-|-$)/g, '');
 
-        // Create new application
+        // Create new application using category_name from base image
         const application = new Application({
             title: mainBaseImage.base_image,
             slug: slug,
-            category: new mongoose.Types.ObjectId('64d722a888498918798bbe4f'),
+            category: mainBaseImage.category_name || 'Development', // Default to 'Development' if not provided
             description: mainBaseImage.description || `Base image for ${mainBaseImage.base_image}`,
             price: 0,
             support_detail: 'Garapin Cloud',

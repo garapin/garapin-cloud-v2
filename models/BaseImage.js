@@ -37,6 +37,10 @@ const baseImageSchema = new mongoose.Schema({
         type: String,
         required: true
     },
+    category_name: {
+        type: String,
+        default: 'Development'
+    },
     database_server: {
         type: String,
         default: null
