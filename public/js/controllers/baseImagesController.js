@@ -72,9 +72,18 @@ async function validateBaseImage(baseImageName) {
     }
 }
 
+// Function to format image source
+function formatImageSource(imageName) {
+    // If it contains a slash, it's a non-official image (e.g., bitnami/laravel)
+    if (imageName.includes('/')) {
+        return imageName;
+    }
+    // If it's an official image, prefix with library/
+    return `library/${imageName}`;
+}
+
 // Function to handle redeploy of base image
 async function redeployImage(baseImageData, buttonElement) {
-    // Store original button content at the top level of the function
     const originalContent = buttonElement.innerHTML;
     let loadingModal = null;
 
@@ -101,15 +110,26 @@ async function redeployImage(baseImageData, buttonElement) {
 
         console.log('Base image details for redeploy:', baseImageData);
 
+        // Get the database server information from the base image card
+        const baseImageCard = buttonElement.closest('.card');
+        const databaseServer = baseImageCard.querySelector('.badge.bg-info')?.textContent.trim();
+        console.log('Database server requirement:', databaseServer);
+
+        // Extract and format image source from version
+        const imageSource = formatImageSource(baseImageData.version.split(':')[0]);
+        const version = baseImageData.version.split(':')[1] || 'latest';
+        const fullVersion = `${imageSource}:${version}`;
+
         // Prepare request body using passed data
         const requestBody = {
             appName: baseImageData.base_image.substring(0, 4),
             base_image_name: baseImageData.base_image,
-            imageSource: baseImageData.version.split(':')[0],
-            version: baseImageData.version,
+            imageSource: imageSource, // Already formatted
+            version: fullVersion,
             StorageSize: baseImageData.StorageSize || "1Gi",
             user_id: currentUser.uid,
-            base_images_id: baseImageData._id  // Reuse existing ID
+            base_images_id: baseImageData._id,  // Reuse existing ID
+            database_server: databaseServer || null
         };
 
         console.log('Sending redeploy request:', requestBody);
@@ -117,6 +137,7 @@ async function redeployImage(baseImageData, buttonElement) {
         // Get the CREATE_BASE_IMAGE_AI_URL from the modal's data attribute
         const createUrl = document.getElementById('aiBuilderModal').dataset.createUrl;
         
+        // Call deployment API
         const redeployResponse = await fetch(createUrl, {
             method: 'POST',
             headers: {
@@ -128,7 +149,11 @@ async function redeployImage(baseImageData, buttonElement) {
 
         if (!redeployResponse.ok) {
             const errorData = await redeployResponse.json();
-            throw new Error(errorData.error || 'Failed to redeploy base image');
+            console.error('Deployment API error:', {
+                status: redeployResponse.status,
+                response: errorData
+            });
+            throw new Error(`Deployment failed: ${errorData.message || 'Unknown error'}`);
         }
 
         const result = await redeployResponse.json();
@@ -152,7 +177,8 @@ async function redeployImage(baseImageData, buttonElement) {
                 },
                 body: JSON.stringify({
                     baseImageId: baseImageData._id,
-                    userId: currentUser.uid
+                    userId: currentUser.uid,
+                    databaseServer: databaseServer || null
                 })
             });
 
@@ -171,26 +197,19 @@ async function redeployImage(baseImageData, buttonElement) {
                 loadingModal.hide();
                 window.location.reload();
             }, 1500);
+        } else if (result.message === 'Error in workflow') {
+            throw new Error('Deployment workflow failed. Please try again or contact support if the issue persists.');
         } else {
             console.error('Invalid rebuild response:', result);
             throw new Error('Base image rebuild response was not in the expected format. Please check the logs for details.');
         }
 
     } catch (error) {
-        console.error('Error redeploying base image:', error);
-        
-        // Show error in modal and close after delay
+        console.error('Error rebuilding base image:', error);
         if (loadingModal) {
             document.getElementById('loadingModalMessage').textContent = `Error: ${error.message}`;
-            document.getElementById('loadingModalMessage').style.color = '#dc3545';
-            setTimeout(() => {
-                loadingModal.hide();
-                // Reset modal style for next use
-                document.getElementById('loadingModalMessage').style.color = '';
-            }, 3000);
+            setTimeout(() => loadingModal.hide(), 2000);
         }
-        
-        // Reset button state
         buttonElement.disabled = false;
         buttonElement.innerHTML = originalContent;
     }
@@ -370,6 +389,9 @@ async function buildImage() {
         const bestImage = await getBestDockerImage(baseImageName);
         let imageSource = bestImage ? bestImage.repo_name : baseImageName;
         let version = versionInput.includes(':') ? versionInput.split(':')[1] : 'latest';
+        
+        // Format the image source correctly
+        imageSource = formatImageSource(imageSource);
         const fullVersion = `${imageSource}:${version}`;
 
         buildButton.innerHTML = '<i class="bi bi-arrow-repeat spin me-1"></i>Building...';
@@ -383,7 +405,7 @@ async function buildImage() {
         const requestBody = {
             appName: baseImageName.substring(0, 4),
             base_image_name: baseImageName,
-            imageSource: imageSource,
+            imageSource: imageSource, // Already formatted
             version: fullVersion,
             StorageSize: parseInt(storageSize) + "Gi",
             user_id: currentUser.uid,

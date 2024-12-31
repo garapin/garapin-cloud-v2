@@ -7,6 +7,17 @@ const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch
 const admin = require('firebase-admin');
 const stringSimilarity = require('string-similarity');
 
+// Helper function to clean and normalize database server string
+function cleanDatabaseString(str) {
+    if (!str) return '';
+    return str
+        .toLowerCase()
+        .replace(/\n/g, '')
+        .replace(/\s+/g, '')
+        .replace(/database/gi, '')
+        .trim();
+}
+
 // Helper function to find similar base image
 async function findSimilarBaseImage(searchName) {
     console.log('\n=== findSimilarBaseImage ===');
@@ -22,42 +33,56 @@ async function findSimilarBaseImage(searchName) {
         const baseImages = await BaseImage.find();
         console.log('Available base images:', baseImages.map(img => ({
             id: img._id.toString(),
-            name: img.base_image
+            name: img.base_image,
+            isDatabase: img.isDatabase
         })));
         
-        // First try exact match
+        // Clean and normalize the search name
+        const normalizedSearchName = cleanDatabaseString(searchName);
+        console.log('Normalized search name:', normalizedSearchName);
+        
+        // First try exact match (case-insensitive)
         const exactMatch = baseImages.find(img => 
-            img.base_image.toLowerCase().trim() === searchName.toLowerCase().trim()
+            cleanDatabaseString(img.base_image) === normalizedSearchName &&
+            img.isDatabase === true
         );
         if (exactMatch) {
             console.log(`Found exact match for "${searchName}":`, {
                 id: exactMatch._id.toString(),
-                name: exactMatch.base_image
+                name: exactMatch.base_image,
+                isDatabase: exactMatch.isDatabase
             });
             return exactMatch;
         }
         
-        // If no exact match, try fuzzy matching
-        const baseImageNames = baseImages.map(img => img.base_image);
+        // If no exact match, try fuzzy matching only on database images
+        const databaseImages = baseImages.filter(img => img.isDatabase === true);
+        if (databaseImages.length === 0) {
+            console.log('No database images found');
+            return null;
+        }
+
+        const databaseImageNames = databaseImages.map(img => cleanDatabaseString(img.base_image));
         const matches = stringSimilarity.findBestMatch(
-            searchName.toLowerCase().trim(), 
-            baseImageNames.map(name => name.toLowerCase().trim())
+            normalizedSearchName, 
+            databaseImageNames
         );
         
-        const SIMILARITY_THRESHOLD = 0.7; // 70% similarity threshold
+        const SIMILARITY_THRESHOLD = 0.7; // Increase threshold for stricter matching
         
-        // If best match rating is above threshold (70% similarity)
+        // If best match rating is above threshold
         if (matches.bestMatch.rating >= SIMILARITY_THRESHOLD) {
-            const matchingBaseImage = baseImages[matches.bestMatchIndex];
+            const matchingBaseImage = databaseImages[matches.bestMatchIndex];
             console.log(`Found similar match for "${searchName}":`, {
                 id: matchingBaseImage._id.toString(),
                 name: matchingBaseImage.base_image,
+                isDatabase: matchingBaseImage.isDatabase,
                 similarity: `${(matches.bestMatch.rating * 100).toFixed(2)}%`
             });
             return matchingBaseImage;
         }
         
-        console.log(`No matching base image found for "${searchName}"`);
+        console.log(`No matching database image found for "${searchName}"`);
         return null;
     } catch (error) {
         console.error('Error finding similar base image:', error);
@@ -244,7 +269,7 @@ async function updateApplicationsByBaseImage(req, res) {
     console.log('Request body:', JSON.stringify(req.body, null, 2));
 
     try {
-        const { baseImageId, userId } = req.body;
+        const { baseImageId, userId, databaseServer } = req.body;
 
         if (!baseImageId) {
             console.error('baseImageId is required');
@@ -262,7 +287,7 @@ async function updateApplicationsByBaseImage(req, res) {
             id: baseImage._id,
             name: baseImage.base_image,
             description: baseImage.description,
-            database_server: baseImage.database_server
+            database_server: databaseServer || baseImage.database_server
         });
 
         // Find all applications that use this base image
@@ -277,25 +302,43 @@ async function updateApplicationsByBaseImage(req, res) {
 
         // Update each application
         const updatePromises = applications.map(async (app) => {
-            // Prepare new base_image array
-            let newBaseImages = [baseImageId]; // Start with the rebuilt base image
+            // Start with a fresh array containing only the rebuilt base image
+            let newBaseImages = [baseImageId];
 
             // If the base image requires a database, find and add the database image
-            if (baseImage.database_server && 
-                !['None*', 'N/A', 'null', 'None Required', 'none', 'None required'].includes(baseImage.database_server?.toLowerCase())) {
+            const dbServer = databaseServer || baseImage.database_server;
+            if (dbServer && 
+                !['None*', 'N/A', 'null', 'None Required', 'none', 'None required'].includes(dbServer?.toLowerCase())) {
                 
-                console.log('Looking for database image:', baseImage.database_server);
-                const databaseImage = await BaseImage.findOne({
-                    base_image: { $regex: new RegExp(baseImage.database_server, 'i') }
-                });
+                const cleanDatabaseServer = dbServer.replace(/\n/g, '').trim();
+                console.log('\n=== Searching for Database Image ===');
+                console.log('Original database_server value:', dbServer);
+                console.log('Cleaned database server value:', cleanDatabaseServer);
 
-                if (databaseImage) {
+                const databaseBaseImage = await findSimilarBaseImage(cleanDatabaseServer);
+                console.log('\n=== Database Image Search Result ===');
+                if (databaseBaseImage) {
                     console.log('Found database image:', {
-                        id: databaseImage._id,
-                        name: databaseImage.base_image
+                        id: databaseBaseImage._id.toString(),
+                        name: databaseBaseImage.base_image,
+                        type: databaseBaseImage.type || 'N/A'
                     });
-                    newBaseImages.push(databaseImage._id);
+
+                    // Add database image only if it's different from the main image
+                    if (databaseBaseImage._id.toString() !== baseImageId.toString()) {
+                        newBaseImages.push(databaseBaseImage._id);
+                        console.log('Successfully added database image to base_image array');
+                        console.log('Current base_image array:', newBaseImages.map(id => id.toString()));
+                    } else {
+                        console.log('Database image is the same as main image - skipping');
+                    }
+                } else {
+                    console.warn('❌ No matching database image found for:', cleanDatabaseServer);
+                    console.warn('This may cause issues as the application expects a database');
                 }
+            } else {
+                console.log('\n=== Database Check ===');
+                console.log('No database_server specified in the base image');
             }
 
             // Prepare update data
