@@ -48,15 +48,21 @@ async function validateBaseImage(baseImageName) {
     try {
         const bestImage = await getBestDockerImage(baseImageName);
         if (bestImage) {
+            // For official images, add library/ prefix if not already present
+            // For non-official images, use the full repo name (e.g., bitnami/laravel)
+            const imageSource = bestImage.is_official ? 
+                (bestImage.repo_name.includes('/') ? bestImage.repo_name : `library/${bestImage.repo_name}`) : 
+                bestImage.repo_name;
+
             if (!versionInput.value) {
-                versionInput.value = `${bestImage.repo_name}:latest`;
+                versionInput.value = `${imageSource}:latest`;
             } else if (!versionInput.value.includes('/')) {
-                versionInput.value = `${bestImage.repo_name}:${versionInput.value.replace(/^.*:/, '')}`;
+                versionInput.value = `${imageSource}:${versionInput.value.replace(/^.*:/, '')}`;
             }
 
             errorDiv.style.display = 'block';
             errorDiv.style.color = '#198754';
-            errorDiv.textContent = `Using image: ${bestImage.repo_name} (${bestImage.pull_count.toLocaleString()} pulls)`;
+            errorDiv.textContent = `Using image: ${imageSource} (${bestImage.pull_count.toLocaleString()} pulls)`;
             return;
         }
 
@@ -73,13 +79,13 @@ async function validateBaseImage(baseImageName) {
 }
 
 // Function to format image source
-function formatImageSource(imageName) {
-    // If it contains a slash, it's a non-official image (e.g., bitnami/laravel)
-    if (imageName.includes('/')) {
-        return imageName;
+function formatImageSource(imageName, isOfficial = false) {
+    // If it's an official image and doesn't have a prefix, add library/
+    if (isOfficial && !imageName.includes('/')) {
+        return `library/${imageName}`;
     }
-    // If it's an official image, prefix with library/
-    return `library/${imageName}`;
+    // For non-official images, the repository prefix should already be included
+    return imageName;
 }
 
 // Function to handle redeploy of base image
@@ -387,11 +393,15 @@ async function buildImage() {
 
     try {
         const bestImage = await getBestDockerImage(baseImageName);
-        let imageSource = bestImage ? bestImage.repo_name : baseImageName;
+        // For official images, add library/ prefix if not already present
+        // For non-official images, use the full repo name (e.g., bitnami/laravel)
+        let imageSource = bestImage ? 
+            (bestImage.is_official ? 
+                (bestImage.repo_name.includes('/') ? bestImage.repo_name : `library/${bestImage.repo_name}`) : 
+                bestImage.repo_name) : 
+            formatImageSource(baseImageName, true); // Assume official if no match found
+
         let version = versionInput.includes(':') ? versionInput.split(':')[1] : 'latest';
-        
-        // Format the image source correctly
-        imageSource = formatImageSource(imageSource);
         const fullVersion = `${imageSource}:${version}`;
 
         buildButton.innerHTML = '<i class="bi bi-arrow-repeat spin me-1"></i>Building...';
@@ -405,7 +415,7 @@ async function buildImage() {
         const requestBody = {
             appName: baseImageName.substring(0, 4),
             base_image_name: baseImageName,
-            imageSource: imageSource, // Already formatted
+            imageSource: imageSource,
             version: fullVersion,
             StorageSize: parseInt(storageSize) + "Gi",
             user_id: currentUser.uid,
