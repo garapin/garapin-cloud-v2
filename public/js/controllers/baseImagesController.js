@@ -46,10 +46,21 @@ async function validateBaseImage(baseImageName) {
     }
 
     try {
+        // If user provided a complete version (with repository), validate it directly
+        if (versionInput.value && versionInput.value.includes('/')) {
+            const [repo, tag] = versionInput.value.split(':');
+            const bestImage = await getBestDockerImage(repo);
+            if (bestImage) {
+                errorDiv.style.display = 'block';
+                errorDiv.style.color = '#198754';
+                errorDiv.textContent = `Using image: ${versionInput.value} (${bestImage.pull_count.toLocaleString()} pulls)`;
+                return;
+            }
+        }
+
+        // Otherwise, suggest version based on base image name
         const bestImage = await getBestDockerImage(baseImageName);
         if (bestImage) {
-            // For official images, add library/ prefix if not already present
-            // For non-official images, use the full repo name (e.g., bitnami/laravel)
             const imageSource = bestImage.is_official ? 
                 (bestImage.repo_name.includes('/') ? bestImage.repo_name : `library/${bestImage.repo_name}`) : 
                 bestImage.repo_name;
@@ -377,7 +388,8 @@ function generateObjectId() {
 async function buildImage() {
     const baseImageName = document.getElementById('baseImageName').value.trim().toLowerCase();
     const storageSize = document.getElementById('storageSize').value;
-    const versionInput = document.getElementById('version').value.trim();
+    const versionInput = document.getElementById('version');
+    const versionValue = versionInput ? versionInput.value.trim() : '';
 
     if (!baseImageName) {
         showToast('Please enter a base image name', 'error');
@@ -392,17 +404,30 @@ async function buildImage() {
     buildButton.innerHTML = '<i class="bi bi-arrow-repeat spin me-1"></i>Validating...';
 
     try {
-        const bestImage = await getBestDockerImage(baseImageName);
-        // For official images, add library/ prefix if not already present
-        // For non-official images, use the full repo name (e.g., bitnami/laravel)
-        let imageSource = bestImage ? 
-            (bestImage.is_official ? 
-                (bestImage.repo_name.includes('/') ? bestImage.repo_name : `library/${bestImage.repo_name}`) : 
-                bestImage.repo_name) : 
-            formatImageSource(baseImageName, true); // Assume official if no match found
+        let imageSource, version, fullVersion;
 
-        let version = versionInput.includes(':') ? versionInput.split(':')[1] : 'latest';
-        const fullVersion = `${imageSource}:${version}`;
+        // If user provided a complete version, use it directly after validation
+        if (versionValue && versionValue.includes('/')) {
+            const [repo, tag] = versionValue.split(':');
+            const bestImage = await getBestDockerImage(repo);
+            if (!bestImage) {
+                throw new Error('Invalid image repository. Please check the image name and try again.');
+            }
+            imageSource = repo;
+            version = tag || 'latest';
+            fullVersion = versionValue;
+        } else {
+            // Otherwise, format the image source based on Docker Hub info
+            const bestImage = await getBestDockerImage(baseImageName);
+            imageSource = bestImage ? 
+                (bestImage.is_official ? 
+                    (bestImage.repo_name.includes('/') ? bestImage.repo_name : `library/${bestImage.repo_name}`) : 
+                    bestImage.repo_name) : 
+                formatImageSource(baseImageName, true);
+
+            version = versionValue && versionValue.includes(':') ? versionValue.split(':')[1] : 'latest';
+            fullVersion = `${imageSource}:${version}`;
+        }
 
         buildButton.innerHTML = '<i class="bi bi-arrow-repeat spin me-1"></i>Building...';
 
