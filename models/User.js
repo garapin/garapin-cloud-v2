@@ -1,26 +1,35 @@
 const mongoose = require('mongoose');
 
 const userSchema = new mongoose.Schema({
-    provider: String,
-    provider_uid: { type: String, unique: true },
-    email: String,
-    name: String,
-    photoURL: String,
-    namespace: { 
-        type: String, 
-        unique: true,
-        sparse: true,
-        validate: {
-            validator: function(v) {
-                // Must start with a letter, followed by lowercase letters or numbers, total 8 chars
-                return /^[a-z][a-z0-9]{7}$/.test(v);
-            },
-            message: props => `${props.value} is not a valid namespace! Must be 8 characters, start with a letter, and contain only lowercase letters and numbers.`
-        }
+    name: { type: String, required: true },
+    email: { type: String, required: true, unique: true },
+    provider: { type: String, required: true },
+    provider_uid: { type: String, required: true, unique: true },
+    photoURL: { type: String },
+    namespace: { type: String },
+    profile: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Profile'
     },
-    last_login_at: { type: Date, default: Date.now },
+    user_type: { type: String, enum: ['Individu', 'Badan Hukum'], default: 'Individu' },
+    badan_hukum_name: { type: String },
+    address: {
+        alamat_lengkap: { type: String },
+        provinsi: { type: String },
+        kota: { type: String },
+        kode_pos: { type: String }
+    },
+    pic: { type: String },
+    phone_number: { type: String },
+    web_address: { type: String },
     created_at: { type: Date, default: Date.now },
     updated_at: { type: Date, default: Date.now }
+}, {
+    collection: 'users',
+    timestamps: {
+        createdAt: 'created_at',
+        updatedAt: 'updated_at'
+    }
 });
 
 userSchema.pre('save', function(next) {
@@ -28,6 +37,7 @@ userSchema.pre('save', function(next) {
     next();
 });
 
-const User = mongoose.model('User', userSchema);
+// Ensure model hasn't been compiled before
+const User = mongoose.models.User || mongoose.model('User', userSchema);
 
 module.exports = User; 

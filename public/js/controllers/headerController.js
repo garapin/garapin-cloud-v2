@@ -42,7 +42,7 @@ window.updateUserUI = (user) => {
     // Handle user name display
     const userNameDisplay = document.getElementById('userName');
     if (userNameDisplay) {
-        const displayName = user.displayName || user.name || user.email?.split('@')[0] || 'User';
+        const displayName = user.displayName || user.name || (user.email ? user.email.split('@')[0] : 'User');
         userNameDisplay.textContent = displayName;
     }
 
@@ -180,5 +180,20 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     } catch (error) {
         console.error('Firebase initialization error:', error);
+        return;
     }
+
+    /* Fallback: Check after 5 seconds if userName is still 'Loading...' */
+    setTimeout(() => {
+        const userNameDisplay = document.getElementById('userName');
+        if (userNameDisplay && (userNameDisplay.textContent === 'Loading...' || !userNameDisplay.textContent.trim())) {
+            const currentUser = firebase.auth().currentUser;
+            console.log('Fallback check after 5 seconds, firebase.auth().currentUser:', currentUser);
+            if (currentUser) {
+                userNameDisplay.textContent = currentUser.displayName || (currentUser.email ? currentUser.email.split('@')[0] : 'User');
+            } else {
+                console.warn('No current user found in fallback.');
+            }
+        }
+    }, 5000);
 }); 

@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Garapin Cloud - Profile</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="/css/style.css">
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-auth-compat.js"></script>
+</head>
+<body>
+    <div class="container-fluid" data-firebase-config='<%= JSON.stringify(firebaseConfig) %>'>
+        <div class="row">
+            <%- include('partials/sidebar', { currentPage: 'profile' }) %>
+            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 bg-light">
+                <%- include('partials/header', { pageTitle: 'Profile', user: user }) %>
+                
+                <div class="container mt-4">
+                    <div class="card">
+                        <div class="card-body">
+                            <h5 class="card-title mb-4">Profile Settings</h5>
+                            <form action="/profile/save" method="post" id="profileForm">
+                                <!-- User Type Selection -->
+                                <div class="mb-4">
+                                    <label class="form-label">User Type</label>
+                                    <div class="d-flex gap-4">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="radio" name="userType" id="individuRadio" value="Individu" checked>
+                                            <label class="form-check-label" for="individuRadio">
+                                                Individu
+                                            </label>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="radio" name="userType" id="badanHukumRadio" value="Badan Hukum">
+                                            <label class="form-check-label" for="badanHukumRadio">
+                                                Badan Hukum
+                                            </label>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- PIC Field (moved above address) -->
+                                <div class="mb-3">
+                                    <label for="pic" class="form-label">PIC / Person In Charge *</label>
+                                    <input type="text" class="form-control" id="pic" name="pic" placeholder="Enter person in charge name" required>
+                                </div>
+
+                                <!-- Badan Hukum Fields (initially hidden) -->
+                                <div id="badanHukumFields" style="display: none;">
+                                    <div class="mb-4">
+                                        <label for="namaBadanHukum" class="form-label">Nama Badan Hukum *</label>
+                                        <input type="text" class="form-control" id="namaBadanHukum" name="namaBadanHukum" placeholder="Enter legal entity name">
+                                    </div>
+                                </div>
+
+                                <!-- Address Fields (always visible) -->
+                                <div class="mb-4">
+                                    <label class="form-label" id="alamatLabel">Alamat sesuai KTP *</label>
+                                    <div class="mb-3">
+                                        <label for="alamatBadanHukum" class="form-label text-muted small" id="alamatDetailLabel">Alamat Lengkap *</label>
+                                        <textarea class="form-control" id="alamatBadanHukum" name="alamatBadanHukum" rows="2" placeholder="Masukkan alamat lengkap" required></textarea>
+                                    </div>
+                                    <div class="row">
+                                        <div class="col-md-4 mb-3">
+                                            <label for="provinsi" class="form-label text-muted small">Provinsi *</label>
+                                            <select class="form-select" id="provinsi" name="provinsi" required>
+                                                <option value="">Pilih Provinsi</option>
+                                                <option value="Aceh">Aceh</option>
+                                                <option value="Sumatera Utara">Sumatera Utara</option>
+                                                <option value="Sumatera Barat">Sumatera Barat</option>
+                                                <option value="Riau">Riau</option>
+                                                <option value="Kepulauan Riau">Kepulauan Riau</option>
+                                                <option value="Jambi">Jambi</option>
+                                                <option value="Sumatera Selatan">Sumatera Selatan</option>
+                                                <option value="Kepulauan Bangka Belitung">Kepulauan Bangka Belitung</option>
+                                                <option value="Bengkulu">Bengkulu</option>
+                                                <option value="Lampung">Lampung</option>
+                                                <option value="DKI Jakarta">DKI Jakarta</option>
+                                                <option value="Banten">Banten</option>
+                                                <option value="Jawa Barat">Jawa Barat</option>
+                                                <option value="Jawa Tengah">Jawa Tengah</option>
+                                                <option value="DI Yogyakarta">DI Yogyakarta</option>
+                                                <option value="Jawa Timur">Jawa Timur</option>
+                                                <option value="Bali">Bali</option>
+                                                <option value="Nusa Tenggara Barat">Nusa Tenggara Barat</option>
+                                                <option value="Nusa Tenggara Timur">Nusa Tenggara Timur</option>
+                                                <option value="Kalimantan Barat">Kalimantan Barat</option>
+                                                <option value="Kalimantan Tengah">Kalimantan Tengah</option>
+                                                <option value="Kalimantan Selatan">Kalimantan Selatan</option>
+                                                <option value="Kalimantan Timur">Kalimantan Timur</option>
+                                                <option value="Kalimantan Utara">Kalimantan Utara</option>
+                                                <option value="Sulawesi Utara">Sulawesi Utara</option>
+                                                <option value="Gorontalo">Gorontalo</option>
+                                                <option value="Sulawesi Tengah">Sulawesi Tengah</option>
+                                                <option value="Sulawesi Barat">Sulawesi Barat</option>
+                                                <option value="Sulawesi Selatan">Sulawesi Selatan</option>
+                                                <option value="Sulawesi Tenggara">Sulawesi Tenggara</option>
+                                                <option value="Maluku">Maluku</option>
+                                                <option value="Maluku Utara">Maluku Utara</option>
+                                                <option value="Papua">Papua</option>
+                                                <option value="Papua Barat">Papua Barat</option>
+                                                <option value="Papua Selatan">Papua Selatan</option>
+                                                <option value="Papua Tengah">Papua Tengah</option>
+                                                <option value="Papua Pegunungan">Papua Pegunungan</option>
+                                            </select>
+                                        </div>
+                                        <div class="col-md-4 mb-3">
+                                            <label for="kota" class="form-label text-muted small">Kota/Kabupaten *</label>
+                                            <input type="text" class="form-control" id="kota" name="kota" placeholder="Masukkan kota" required>
+                                        </div>
+                                        <div class="col-md-4 mb-3">
+                                            <label for="kodePos" class="form-label text-muted small">Kode Pos *</label>
+                                            <input type="text" class="form-control" id="kodePos" name="kodePos" placeholder="Masukkan kode pos" required>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Common Fields -->
+                                <div class="mb-3">
+                                    <label for="phoneNumber" class="form-label">Phone Number *</label>
+                                    <input type="tel" class="form-control" id="phoneNumber" name="phoneNumber" placeholder="Enter phone number" required>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label for="webAddress" class="form-label">Web Address</label>
+                                    <input type="text" class="form-control" id="webAddress" name="webAddress" placeholder="Enter website URL">
+                                </div>
+
+                                <div class="mt-4">
+                                    <p class="text-muted small">* Required fields</p>
+                                    <button type="submit" class="btn btn-primary">Save Profile</button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/js/controllers/headerController.js"></script>
+    <script>
+        $(document).ready(function() {
+            console.log('Document ready');
+            
+            function showBadanHukumFields() {
+                $('#badanHukumFields').show();
+                $('#alamatLabel').text('Alamat Badan Hukum');
+                console.log('Showing Badan Hukum fields');
+            }
+            
+            function hideBadanHukumFields() {
+                $('#badanHukumFields').hide();
+                $('#alamatLabel').text('Alamat sesuai KTP');
+                console.log('Hiding Badan Hukum fields');
+            }
+            
+            // Handle radio button changes
+            $('#badanHukumRadio, #individuRadio').on('change', function() {
+                console.log('Radio changed:', this.id, 'checked:', this.checked);
+                if (this.id === 'badanHukumRadio' && this.checked) {
+                    showBadanHukumFields();
+                } else if (this.id === 'individuRadio' && this.checked) {
+                    hideBadanHukumFields();
+                }
+            });
+            
+            // Set initial state
+            if ($('#badanHukumRadio').is(':checked')) {
+                showBadanHukumFields();
+            } else {
+                hideBadanHukumFields();
+            }
+
+            // Form validation
+            $('#profileForm').on('submit', async function(e) {
+                e.preventDefault(); // Prevent default form submission
+                
+                const requiredFields = [
+                    { id: 'pic', label: 'PIC / Person In Charge' },
+                    { id: 'alamatBadanHukum', label: 'Alamat Lengkap' },
+                    { id: 'provinsi', label: 'Provinsi' },
+                    { id: 'kota', label: 'Kota/Kabupaten' },
+                    { id: 'kodePos', label: 'Kode Pos' },
+                    { id: 'phoneNumber', label: 'Phone Number' }
+                ];
+
+                if($('#badanHukumRadio').is(':checked')) {
+                    requiredFields.unshift({ id: 'namaBadanHukum', label: 'Nama Badan Hukum' });
+                }
+                
+                const emptyFields = requiredFields
+                    .filter(field => !$('#' + field.id).val())
+                    .map(field => field.label);
+                
+                if(emptyFields.length > 0) {
+                    alert('Mohon lengkapi field berikut:\n' + emptyFields.join('\n'));
+                    return;
+                }
+
+                try {
+                    const user = firebase.auth().currentUser;
+                    if (!user) {
+                        throw new Error('User not authenticated');
+                    }
+
+                    const token = await user.getIdToken();
+                    
+                    const formData = {
+                        userType: $('input[name="userType"]:checked').val(),
+                        namaBadanHukum: $('#namaBadanHukum').val(),
+                        alamatBadanHukum: $('#alamatBadanHukum').val(),
+                        provinsi: $('#provinsi').val(),
+                        kota: $('#kota').val(),
+                        kodePos: $('#kodePos').val(),
+                        pic: $('#pic').val(),
+                        phoneNumber: $('#phoneNumber').val(),
+                        webAddress: $('#webAddress').val()
+                    };
+
+                    const response = await fetch('/profile/save', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${token}`
+                        },
+                        body: JSON.stringify(formData)
+                    });
+
+                    if (response.ok) {
+                        const result = await response.json();
+                        if (result.success) {
+                            alert('Profile saved successfully!');
+                            
+                            // Update form with saved data
+                            const profileData = result.profile;
+                            if(profileData.user_type) {
+                                $(`input[name="userType"][value="${profileData.user_type}"]`).prop('checked', true).trigger('change');
+                            }
+                            if(profileData.badan_hukum_name) $('#namaBadanHukum').val(profileData.badan_hukum_name);
+                            if(profileData.address) {
+                                $('#alamatBadanHukum').val(profileData.address.alamat_lengkap);
+                                $('#provinsi').val(profileData.address.provinsi);
+                                $('#kota').val(profileData.address.kota);
+                                $('#kodePos').val(profileData.address.kode_pos);
+                            }
+                            if(profileData.pic) $('#pic').val(profileData.pic);
+                            if(profileData.phone_number) $('#phoneNumber').val(profileData.phone_number);
+                            if(profileData.web_address) $('#webAddress').val(profileData.web_address);
+                        } else {
+                            throw new Error(result.message || 'Failed to save profile');
+                        }
+                    } else {
+                        const errorData = await response.json();
+                        throw new Error(errorData.error || 'Failed to save profile');
+                    }
+                } catch (error) {
+                    console.error('Error saving profile:', error);
+                    alert('Error saving profile: ' + error.message);
+                }
+            });
+
+            // Load existing user data if available
+            firebase.auth().onAuthStateChanged(async function(user) {
+                if(user) {
+                    const token = await user.getIdToken();
+                    try {
+                        console.log('Loading profile data...');
+                        const response = await fetch('/profile/data', {
+                            headers: {
+                                'Authorization': `Bearer ${token}`
+                            }
+                        });
+                        if(response.ok) {
+                            const userData = await response.json();
+                            console.log('Loaded profile data:', userData);
+                            
+                            // Populate form with user data
+                            if(userData.user_type) {
+                                console.log('Setting user type:', userData.user_type);
+                                $(`input[name="userType"][value="${userData.user_type}"]`).prop('checked', true).trigger('change');
+                            }
+                            if(userData.badan_hukum_name) $('#namaBadanHukum').val(userData.badan_hukum_name);
+                            if(userData.address) {
+                                $('#alamatBadanHukum').val(userData.address.alamat_lengkap);
+                                $('#provinsi').val(userData.address.provinsi);
+                                $('#kota').val(userData.address.kota);
+                                $('#kodePos').val(userData.address.kode_pos);
+                            }
+                            if(userData.pic) $('#pic').val(userData.pic);
+                            if(userData.phone_number) $('#phoneNumber').val(userData.phone_number);
+                            if(userData.web_address) $('#webAddress').val(userData.web_address);
+                        } else {
+                            const errorData = await response.json();
+                            console.error('Error loading profile data:', errorData);
+                        }
+                    } catch(error) {
+                        console.error('Error loading profile data:', error);
+                    }
+                }
+            });
+        });
+    </script>
+</body>
+</html> 

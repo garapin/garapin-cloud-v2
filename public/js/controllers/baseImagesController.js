@@ -185,8 +185,11 @@ async function redeployImage(baseImageData, buttonElement) {
             // Update loading message
             document.getElementById('loadingModalMessage').textContent = 'Updating associated applications...';
 
+            // Get the base URL from the current window location
+            const baseUrl = window.location.origin;
+
             // Update applications that use this base image
-            const updateResponse = await fetch('/api/applications/update-by-base-image', {
+            const updateResponse = await fetch(`${baseUrl}/api/applications/update-by-base-image`, {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${token}`,

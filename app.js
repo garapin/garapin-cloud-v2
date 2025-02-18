@@ -469,6 +469,9 @@ app.get('/dashboard', async (req, res) => {
     });
 });
 
+// Mount profile routes from external file
+app.use('/profile', require('./routes/profile'));
+
 app.get('/store', async (req, res) => {
     try {
         const applications = await Application.find({ status: 'Published' })
