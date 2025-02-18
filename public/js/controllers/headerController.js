@@ -4,6 +4,12 @@ window.authInitialized = false;
 // Global function to handle logout
 window.handleLogout = async () => {
     try {
+        // Check if user has profile before allowing logout
+        const logoutButton = document.getElementById('logoutButton');
+        if (logoutButton.hasAttribute('disabled')) {
+            return; // Do nothing if button is disabled
+        }
+
         // Clear all local storage data
         localStorage.clear();
         

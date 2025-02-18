@@ -7,6 +7,7 @@ const moment = require('moment-timezone');
 const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
 require('dotenv').config();
 const multer = require('multer');
+const { verifyToken } = require('./middleware/auth');
 const upload = multer({
     storage: multer.memoryStorage(),
     limits: {
@@ -218,44 +219,21 @@ app.use((req, res, next) => {
     next();
 });
 
-// Verify Firebase token middleware
-const verifyToken = async (req, res, next) => {
-    try {
-        const authHeader = req.headers.authorization;
-        if (!authHeader || !authHeader.startsWith('Bearer ')) {
-            console.log('No token in header:', authHeader);
-            return res.status(401).json({ error: 'No token provided' });
-        }
-
-        const token = authHeader.split('Bearer ')[1];
-        try {
-            const decodedToken = await admin.auth().verifyIdToken(token);
-            const userData = await User.findOne({ provider_uid: decodedToken.uid });
-            req.user = userData;
-            next();
-        } catch (error) {
-            console.error('Token verification error:', error);
-            res.status(401).json({ error: 'Invalid token' });
-        }
-    } catch (error) {
-        console.error('Auth middleware error:', error);
-        res.status(500).json({ error: 'Authentication failed' });
-    }
-};
-
-// Add this new middleware after the verifyToken middleware
+// Modified checkAuth middleware to use session if available
 const checkAuth = async (req, res, next) => {
+    if (req.session && req.session.user) {
+        req.user = req.session.user;
+        res.locals.user = req.session.user;
+        return next();
+    }
     const token = req.headers.authorization?.split('Bearer ')[1] || req.query.token;
-    
     if (!token) {
         res.locals.user = null;
         return next();
     }
-
     try {
         const decodedToken = await admin.auth().verifyIdToken(token);
         const userData = await User.findOne({ provider_uid: decodedToken.uid });
-        
         if (userData) {
             req.user = userData;
             res.locals.user = userData; // Make user available to all views
@@ -270,6 +248,24 @@ const checkAuth = async (req, res, next) => {
 
 // Apply middleware
 app.use(checkAuth);
+
+// Updated redirect middleware: Only act on GET requests for a logged-in user missing a profile
+// If the request is an AJAX call (req.xhr), return a JSON error; otherwise, do a redirect
+app.use((req, res, next) => {
+    if (req.method === 'GET' && req.user && !req.user.profile &&
+        !req.path.startsWith('/profile') &&
+        !req.path.startsWith('/auth') &&
+        !req.path.startsWith('/api')) {
+        if (req.xhr) {
+            console.log('XHR GET request: User profile missing; sending JSON error');
+            return res.status(403).json({ error: 'User profile required. Please create your profile.' });
+        } else {
+            console.log('Full-page GET request: Redirecting to /profile');
+            return res.redirect('/profile');
+        }
+    }
+    next();
+});
 
 // Routes
 const storeRouter = require('./routes/store');
@@ -435,6 +431,9 @@ app.post('/auth/user', verifyToken, async (req, res) => {
                 );
                 console.log('Updated user:', { id: user._id, email: user.email, name: user.name });
             }
+
+            // Store the authenticated user in the session
+            req.session.user = user;
 
             // Return complete user object
             res.json({ 

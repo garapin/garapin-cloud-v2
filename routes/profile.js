@@ -174,6 +174,12 @@ router.post('/save', async (req, res) => {
                     user._id,
                     { profile: profile._id }
                 );
+
+                // Update session with new user data
+                if (req.session && req.session.user) {
+                    const updatedUser = await User.findById(user._id);
+                    req.session.user = updatedUser;
+                }
             }
 
             console.log('Saved profile:', profile);

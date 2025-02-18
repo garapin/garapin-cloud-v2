@@ -252,6 +252,9 @@
                             if(profileData.pic) $('#pic').val(profileData.pic);
                             if(profileData.phone_number) $('#phoneNumber').val(profileData.phone_number);
                             if(profileData.web_address) $('#webAddress').val(profileData.web_address);
+
+                            // Reload the page to update session and navigation state
+                            window.location.reload();
                         } else {
                             throw new Error(result.message || 'Failed to save profile');
                         }

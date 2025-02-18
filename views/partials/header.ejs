@@ -19,9 +19,9 @@
                     <li><a class="dropdown-item" href="/profile">Settings</a></li>
                     <li><hr class="dropdown-divider"></li>
                     <li>
-                        <button type="button" id="logoutButton" class="dropdown-item d-flex align-items-center">
+                        <button type="button" id="logoutButton" class="dropdown-item d-flex align-items-center" <%= !user?.profile ? 'disabled style="opacity: 0.5; cursor: not-allowed;"' : '' %>>
                             <i class="bi bi-box-arrow-right me-2"></i>
-                            Logout
+                            <%= !user?.profile ? 'Complete Profile to Logout' : 'Logout' %>
                         </button>
                     </li>
                 </ul>
