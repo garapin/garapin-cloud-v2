@@ -1,0 +1,817 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Garapin Cloud - Raku AI</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="/css/style.css">
+    <style>
+        .raku-card {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+        .raku-card h3 {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+    </style>
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-auth-compat.js"></script>
+</head>
+<body>
+    <div class="container-fluid" data-firebase-config='<%= JSON.stringify(firebaseConfig) %>'>
+        <div class="row">
+            <%- include('partials/sidebar', {currentPage: 'raku-ai'}) %>
+
+            <!-- Main content -->
+            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 bg-light">
+                <%- include('partials/header', {pageTitle: 'Raku AI'}) %>
+
+                <!-- Raku AI content -->
+                <div class="row g-4">
+                    <!-- Balance Card -->
+                    <div class="col-12 col-lg-6">
+                        <div class="card text-white h-100 raku-card" style="background-color: #011168;">
+                            <div class="card-body p-3 d-flex flex-column">
+                                <h5 class="card-title mb-3" style="color: #ffffff; font-weight: normal;">Saldo</h5>
+                                <h2 class="card-text mb-4" style="font-size: 3.5rem;">Rp.10.000.000</h2>
+                                <button class="btn btn-primary mt-auto">Tambah Saldo</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Status Card -->
+                    <div class="col-12 col-lg-6">
+                        <div class="card text-white h-100 raku-card" style="background-color: #011168;">
+                            <div class="card-body p-3 d-flex flex-column">
+                                <div class="d-flex justify-content-between align-items-start mb-3">
+                                    <h5 class="card-title mb-0" style="color: #ffffff; font-weight: normal;">Status</h5>
+                                    <span class="text-white-50">1-Feb-2025 - 28-Feb-2025</span>
+                                </div>
+                                <div class="d-flex justify-content-between align-items-center mt-auto">
+                                    <div style="width: 100%;">
+                                        <div class="d-flex justify-content-between align-items-center mb-1">
+                                            <span style="font-weight: normal;">Receipt</span>
+                                            <h3 class="mb-0" style="font-weight: normal; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; min-width: 60px; text-align: right;">100</h3>
+                                        </div>
+                                        <div class="d-flex justify-content-between align-items-center mb-1">
+                                            <span style="font-weight: normal;">Marketing & Promotion</span>
+                                            <h3 class="mb-0" style="font-weight: normal; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; min-width: 60px; text-align: right;">100</h3>
+                                        </div>
+                                        <div class="d-flex justify-content-between align-items-center mb-1">
+                                            <span style="font-weight: normal;">Product & Service</span>
+                                            <h3 class="mb-0" style="font-weight: normal; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; min-width: 60px; text-align: right;">100</h3>
+                                        </div>
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <span style="font-weight: normal;">Order & Reservation</span>
+                                            <h3 class="mb-0" style="font-weight: normal; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; min-width: 60px; text-align: right;">100</h3>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Dynamic Content Section -->
+                <div class="row mt-4">
+                    <div class="col-12">
+                        <!-- Request Section -->
+                        <div id="requestSection" class="card">
+                            <div class="card-body">
+                                <h5 class="card-title mb-4">Permintaan Akses Raku AI</h5>
+                                <form id="rakuAiRequestForm" class="needs-validation" novalidate>
+                                    <!-- Business Information -->
+                                    <div class="mb-4">
+                                        <label for="businessType" class="form-label">Jenis usaha apa yang Anda miliki?</label>
+                                        <input type="text" class="form-control" id="businessType" required
+                                            placeholder="contoh: Restaurant, Retail Store, Online Shop">
+                                        <div class="invalid-feedback">
+                                            Mohon isi jenis usaha Anda.
+                                        </div>
+                                    </div>
+
+                                    <!-- Application Information -->
+                                    <div class="mb-4">
+                                        <label for="applicationType" class="form-label">Aplikasi apa yang Anda miliki?</label>
+                                        <input type="text" class="form-control" id="applicationType" required
+                                            placeholder="contoh: E-commerce, Booking System, CRM">
+                                        <div class="invalid-feedback">
+                                            Mohon isi jenis aplikasi Anda.
+                                        </div>
+                                    </div>
+
+                                    <!-- Application Details -->
+                                    <div class="mb-4">
+                                        <label for="appName" class="form-label">Nama Aplikasi</label>
+                                        <input type="text" class="form-control" id="appName" required>
+                                    </div>
+
+                                    <div class="mb-4">
+                                        <label for="appDescription" class="form-label">Deskripsi Aplikasi</label>
+                                        <textarea class="form-control" id="appDescription" rows="3" required
+                                            placeholder="Jelaskan secara singkat tentang aplikasi Anda dan fitur-fitur utamanya"></textarea>
+                                        <div class="invalid-feedback">
+                                            Mohon isi deskripsi aplikasi Anda.
+                                        </div>
+                                    </div>
+
+                                    <!-- Planning Implementasi -->
+                                    <div class="mb-4">
+                                        <label class="form-label">Planning Implementasi</label>
+                                        <p class="text-muted small">Pilih fitur yang ingin Anda implementasikan dan jelaskan rencana implementasinya</p>
+                                        
+                                        <!-- Receipt -->
+                                        <div class="mb-3">
+                                            <div class="form-check mb-2">
+                                                <input class="form-check-input" type="checkbox" id="receiptCheck" name="features">
+                                                <label class="form-check-label" for="receiptCheck">Receipt</label>
+                                            </div>
+                                            <div class="implementation-plan" id="receiptPlan" style="display: none;">
+                                                <textarea class="form-control" rows="2" 
+                                                    placeholder="Contoh: Saya ingin mengimplementasikan receipt notes ke sistem POS saya"></textarea>
+                                            </div>
+                                        </div>
+
+                                        <!-- Marketing & Promotion -->
+                                        <div class="mb-3">
+                                            <div class="form-check mb-2">
+                                                <input class="form-check-input" type="checkbox" id="marketingCheck" name="features">
+                                                <label class="form-check-label" for="marketingCheck">Marketing & Promotion</label>
+                                            </div>
+                                            <div class="implementation-plan" id="marketingPlan" style="display: none;">
+                                                <textarea class="form-control" rows="2" 
+                                                    placeholder="Jelaskan rencana implementasi untuk marketing dan promosi"></textarea>
+                                            </div>
+                                        </div>
+
+                                        <!-- Product & Service -->
+                                        <div class="mb-3">
+                                            <div class="form-check mb-2">
+                                                <input class="form-check-input" type="checkbox" id="productCheck" name="features">
+                                                <label class="form-check-label" for="productCheck">Product & Service</label>
+                                            </div>
+                                            <div class="implementation-plan" id="productPlan" style="display: none;">
+                                                <textarea class="form-control" rows="2" 
+                                                    placeholder="Jelaskan rencana implementasi untuk produk dan layanan"></textarea>
+                                            </div>
+                                        </div>
+
+                                        <!-- Order & Reservation -->
+                                        <div class="mb-3">
+                                            <div class="form-check mb-2">
+                                                <input class="form-check-input" type="checkbox" id="orderCheck" name="features">
+                                                <label class="form-check-label" for="orderCheck">Order & Reservation</label>
+                                            </div>
+                                            <div class="implementation-plan" id="orderPlan" style="display: none;">
+                                                <textarea class="form-control" rows="2" 
+                                                    placeholder="Jelaskan rencana implementasi untuk pemesanan dan reservasi"></textarea>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="mb-4">
+                                        <label class="form-label d-block">Platform Aplikasi</label>
+                                        <div class="form-check form-check-inline">
+                                            <input class="form-check-input" type="radio" name="platform" id="platformWeb" value="web" required>
+                                            <label class="form-check-label" for="platformWeb">Web Application</label>
+                                        </div>
+                                        <div class="form-check form-check-inline">
+                                            <input class="form-check-input" type="radio" name="platform" id="platformMobile" value="mobile">
+                                            <label class="form-check-label" for="platformMobile">Mobile Application</label>
+                                        </div>
+                                    </div>
+
+                                    <div class="mb-4">
+                                        <label for="appLink" class="form-label">Link Aplikasi</label>
+                                        <input type="url" class="form-control" id="appLink" required
+                                            placeholder="https://your-application.com">
+                                    </div>
+
+                                    <!-- Terms and Agreement -->
+                                    <div class="mb-4">
+                                        <div class="terms-box p-3 mb-3 bg-light" style="height: 200px; overflow-y: auto;">
+                                            <h6>Syarat dan Ketentuan</h6>
+                                            <p>1. Penggunaan Layanan</p>
+                                            <ul>
+                                                <li>Anda setuju untuk menggunakan Raku AI hanya untuk keperluan bisnis yang sah.</li>
+                                                <li>Anda tidak akan menggunakan layanan untuk tujuan ilegal atau tidak sah.</li>
+                                                <li>Anda bertanggung jawab untuk menjaga keamanan akun Anda.</li>
+                                            </ul>
+                                            <p>2. Data Privacy</p>
+                                            <ul>
+                                                <li>Anda memberikan izin kepada Raku AI untuk memproses data aplikasi Anda.</li>
+                                                <li>Kami akan melindungi data Anda sesuai dengan privacy policy kami.</li>
+                                                <li>Anda tetap memiliki kepemilikan atas semua data Anda.</li>
+                                            </ul>
+                                            <p>3. Service Availability</p>
+                                            <ul>
+                                                <li>Kami berusaha untuk menjaga uptime layanan 99.9%.</li>
+                                                <li>Kami berhak untuk memodifikasi atau menghentikan layanan dengan pemberitahuan.</li>
+                                            </ul>
+                                            <p>4. Pembayaran dan Billing</p>
+                                            <ul>
+                                                <li>Penggunaan di atas batas free tier akan dikenakan biaya sesuai pricing kami.</li>
+                                                <li>Anda setuju untuk membayar semua biaya yang berlaku tepat waktu.</li>
+                                            </ul>
+                                        </div>
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="agreeTerms" required>
+                                            <label class="form-check-label" for="agreeTerms">
+                                                Saya telah membaca dan menyetujui syarat dan ketentuan yang berlaku
+                                            </label>
+                                            <div class="invalid-feedback">
+                                                Anda harus menyetujui syarat dan ketentuan.
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="text-end">
+                                        <button type="submit" class="btn btn-primary">Kirim Permintaan</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+
+                        <!-- Main Content Section (Initially Hidden) -->
+                        <div id="mainContent" class="card d-none">
+                            <div class="card-body">
+                                <h5 class="card-title">Raku AI - General</h5>
+                                
+                                <!-- API Keys Section -->
+                                <div class="mt-4">
+                                    <div class="d-flex justify-content-between align-items-center mb-3">
+                                        <h6 class="mb-0">API keys</h6>
+                                        <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#createApiKeyModal">
+                                            <i class="bi bi-plus"></i> Create new secret key
+                                        </button>
+                                    </div>
+
+                                    <!-- Create API Key Modal -->
+                                    <div class="modal fade" id="createApiKeyModal" tabindex="-1">
+                                        <div class="modal-dialog">
+                                            <div class="modal-content">
+                                                <div class="modal-header">
+                                                    <h5 class="modal-title">Create New API Key</h5>
+                                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                                </div>
+                                                <div class="modal-body">
+                                                    <form id="createApiKeyForm">
+                                                        <div class="mb-3">
+                                                            <label for="apiKeyName" class="form-label">Name</label>
+                                                            <input type="text" class="form-control" id="apiKeyName" required
+                                                                placeholder="Enter a name for your API key">
+                                                        </div>
+                                                    </form>
+                                                </div>
+                                                <div class="modal-footer">
+                                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                                                    <button type="button" class="btn btn-primary" id="createApiKeyBtn">Create</button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- API Key Created Success Modal -->
+                                    <div class="modal fade" id="apiKeyCreatedModal" tabindex="-1">
+                                        <div class="modal-dialog">
+                                            <div class="modal-content">
+                                                <div class="modal-header">
+                                                    <h5 class="modal-title">API Key Created</h5>
+                                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                                </div>
+                                                <div class="modal-body">
+                                                    <div class="alert alert-success">
+                                                        <strong>Success!</strong> Your new API key has been created.
+                                                    </div>
+                                                    <div class="mb-3">
+                                                        <label class="form-label">Your API Key:</label>
+                                                        <div class="input-group">
+                                                            <input type="text" class="form-control" id="newApiKey" readonly>
+                                                            <button class="btn btn-outline-secondary" type="button" onclick="copyApiKey()">
+                                                                <i class="bi bi-clipboard"></i>
+                                                            </button>
+                                                        </div>
+                                                        <small class="text-danger">
+                                                            Make sure to copy your API key now. You won't be able to see it again!
+                                                        </small>
+                                                    </div>
+                                                </div>
+                                                <div class="modal-footer">
+                                                    <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Done</button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <p class="text-muted mb-2">As the owner of this project, you can view and manage all API keys associated with this project.</p>
+
+                                    <div class="alert alert-warning mb-4">
+                                        <h6 class="alert-heading d-flex align-items-center">
+                                            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                                            Security Notice:
+                                        </h6>
+                                        <ul class="mb-0 ps-3">
+                                            <li>Keep your API keys confidential and do not share them with others.</li>
+                                            <li>Never expose your API keys in client-side code, public repositories, or unsecured environments.</li>
+                                            <li>If an API key is compromised, revoke and regenerate it immediately to prevent unauthorized access.</li>
+                                            <li>To protect your account and data, our system may automatically deactivate any API key detected in a public or insecure location.</li>
+                                        </ul>
+                                    </div>
+                                    
+                                    <!-- API Keys Table -->
+                                    <div class="table-responsive">
+                                        <table class="table" id="apiKeysTable">
+                                            <thead>
+                                                <tr>
+                                                    <th>NAME</th>
+                                                    <th>SECRET KEY</th>
+                                                    <th>CREATED</th>
+                                                    <th>LAST USED</th>
+                                                    <th>CREATED BY</th>
+                                                    <th>STATUS</th>
+                                                    <th>ACTIONS</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                <!-- API keys will be loaded here dynamically -->
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/js/controllers/headerController.js"></script>
+    <script src="/js/controllers/rakuAiController.js"></script>
+    
+    <script>
+        // Initialize Firebase
+        const firebaseConfig = JSON.parse(document.querySelector('[data-firebase-config]').dataset.firebaseConfig);
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+
+        // Function to disable all form fields
+        function disableForm() {
+            const form = document.getElementById('rakuAiRequestForm');
+            const elements = form.elements;
+            for (let i = 0; i < elements.length; i++) {
+                elements[i].disabled = true;
+            }
+            const submitBtn = form.querySelector('button[type="submit"]');
+            submitBtn.textContent = 'Pengajuan Terikirim - Tunggu max 24 Jam untuk approval';
+            submitBtn.classList.remove('btn-primary');
+            submitBtn.classList.add('btn-danger');
+            submitBtn.disabled = true;
+        }
+
+        // Function to populate form with existing data
+        function populateForm(data) {
+            if (!data) return;
+
+            if (data.status === 'Approved') {
+                // Change title and show approved view
+                document.querySelector('.card-title').textContent = 'Raku AI General';
+                document.getElementById('requestSection').classList.add('d-none');
+                document.getElementById('mainContent').classList.remove('d-none');
+                return;
+            }
+
+            document.getElementById('businessType').value = data.business_type || '';
+            document.getElementById('applicationType').value = data.application_type || '';
+            document.getElementById('appName').value = data.app_name || '';
+            document.getElementById('appDescription').value = data.app_description || '';
+            document.getElementById('appLink').value = data.app_link || '';
+            
+            // Set platform
+            if (data.platform) {
+                const platformInput = document.querySelector(`input[name="platform"][value="${data.platform}"]`);
+                if (platformInput) {
+                    platformInput.checked = true;
+                }
+            }
+
+            // Set features and show implementation plans
+            if (data.features) {
+                Object.entries(data.features).forEach(([feature, details]) => {
+                    const checkboxId = feature.replace(/_/g, '') + 'Check';
+                    const checkbox = document.getElementById(checkboxId);
+                    if (checkbox && details.selected) {
+                        checkbox.checked = true;
+                        const planId = checkboxId.replace('Check', 'Plan');
+                        const planElement = document.getElementById(planId);
+                        if (planElement) {
+                            planElement.style.display = 'block';
+                            const textarea = planElement.querySelector('textarea');
+                            if (textarea) {
+                                textarea.value = details.implementation_plan || '';
+                            }
+                        }
+                    }
+                });
+            }
+
+            // Set terms checkbox
+            document.getElementById('agreeTerms').checked = true;
+
+            // If status is Requested, disable the form
+            if (data.status === 'Requested') {
+                disableForm();
+            }
+        }
+
+        // Check for existing Raku AI request data
+        async function checkExistingRequest() {
+            try {
+                const user = firebase.auth().currentUser;
+                if (!user) return;
+
+                const token = await user.getIdToken();
+                const response = await fetch('/profile/data', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    console.log('Received profile data:', data);
+                    if (data.raku_ai) {
+                        if (data.raku_ai.status === 'Approved') {
+                            // Change title and show approved view
+                            document.querySelector('.card-title').textContent = 'Raku AI General';
+                            document.getElementById('requestSection').classList.add('d-none');
+                            document.getElementById('mainContent').classList.remove('d-none');
+                        } else {
+                            populateForm(data.raku_ai);
+                            if (data.raku_ai.status === 'Requested') {
+                                disableForm();
+                            }
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Error checking existing request:', error);
+            }
+        }
+
+        // Call checkExistingRequest when Firebase auth state changes
+        firebase.auth().onAuthStateChanged((user) => {
+            if (user) {
+                checkExistingRequest();
+            }
+        });
+
+        // Form validation and submission
+        document.getElementById('rakuAiRequestForm').addEventListener('submit', async function(event) {
+            event.preventDefault();
+            
+            if (!this.checkValidity()) {
+                event.stopPropagation();
+                this.classList.add('was-validated');
+                return;
+            }
+
+            try {
+                // Get the current user's Firebase token
+                const user = firebase.auth().currentUser;
+                if (!user) {
+                    alert('Silakan login terlebih dahulu.');
+                    return;
+                }
+
+                const token = await user.getIdToken(true);
+
+                // Collect form data
+                const formData = {
+                    business_type: document.getElementById('businessType').value,
+                    application_type: document.getElementById('applicationType').value,
+                    app_name: document.getElementById('appName').value,
+                    app_description: document.getElementById('appDescription').value,
+                    platform: document.querySelector('input[name="platform"]:checked').value,
+                    app_link: document.getElementById('appLink').value,
+                    features: {
+                        receipt: {
+                            selected: document.getElementById('receiptCheck').checked,
+                            implementation_plan: document.getElementById('receiptCheck').checked ? 
+                                document.querySelector('#receiptPlan textarea').value : ''
+                        },
+                        marketing_promotion: {
+                            selected: document.getElementById('marketingCheck').checked,
+                            implementation_plan: document.getElementById('marketingCheck').checked ? 
+                                document.querySelector('#marketingPlan textarea').value : ''
+                        },
+                        product_service: {
+                            selected: document.getElementById('productCheck').checked,
+                            implementation_plan: document.getElementById('productCheck').checked ? 
+                                document.querySelector('#productPlan textarea').value : ''
+                        },
+                        order_reservation: {
+                            selected: document.getElementById('orderCheck').checked,
+                            implementation_plan: document.getElementById('orderCheck').checked ? 
+                                document.querySelector('#orderPlan textarea').value : ''
+                        }
+                    },
+                    status: 'Requested',
+                    requested_at: new Date().toISOString()
+                };
+
+                // Send the request to the server
+                const response = await fetch('/profile/raku-ai-request', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify(formData)
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.message || 'Failed to submit request');
+                }
+
+                const result = await response.json();
+                
+                // Show success message and disable form
+                alert('Permintaan Anda telah berhasil dikirim dan sedang dalam proses review.');
+                populateForm({ ...formData, status: 'Requested' });
+            } catch (error) {
+                console.error('Error submitting request:', error);
+                alert(`Terjadi kesalahan saat mengirim permintaan: ${error.message}`);
+            }
+        });
+
+        // Add feature checkbox handlers
+        document.querySelectorAll('input[name="features"]').forEach(checkbox => {
+            checkbox.addEventListener('change', function() {
+                const planId = this.id.replace('Check', 'Plan');
+                const planElement = document.getElementById(planId);
+                planElement.style.display = this.checked ? 'block' : 'none';
+                
+                // Make textarea required if checkbox is checked
+                const textarea = planElement.querySelector('textarea');
+                if (textarea) {
+                    textarea.required = this.checked;
+                }
+            });
+        });
+
+        // Function to format date in dd-MMM-yy hh:mm:ss format
+        function formatDateTime(dateString) {
+            if (!dateString) return '-';
+            const date = new Date(dateString);
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            
+            const day = date.getDate().toString().padStart(2, '0');
+            const month = months[date.getMonth()];
+            const year = date.getFullYear().toString().slice(-2);
+            const hours = date.getHours().toString().padStart(2, '0');
+            const minutes = date.getMinutes().toString().padStart(2, '0');
+            const seconds = date.getSeconds().toString().padStart(2, '0');
+            
+            return `${day}-${month}-${year} ${hours}:${minutes}:${seconds}`;
+        }
+
+        // Function to load API keys
+        async function loadApiKeys() {
+            try {
+                console.log('Starting to load API keys...');
+                const user = firebase.auth().currentUser;
+                if (!user) {
+                    console.log('No authenticated user found');
+                    return;
+                }
+
+                console.log('Getting Firebase token...');
+                const token = await user.getIdToken();
+                console.log('Token obtained, making API request...');
+                
+                const response = await fetch('/profile/api-keys', {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Accept': 'application/json'
+                    }
+                });
+
+                console.log('API Response status:', response.status);
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('API Error Response:', errorText);
+                    throw new Error(`Failed to fetch API keys: ${response.status} ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                console.log('API Response data:', data);
+
+                if (!data.success) {
+                    throw new Error(data.error || 'Failed to fetch API keys');
+                }
+
+                const tbody = document.querySelector('#apiKeysTable tbody');
+                tbody.innerHTML = '';
+
+                if (!data.apiKeys || !Array.isArray(data.apiKeys)) {
+                    console.log('No API keys found or invalid data format');
+                    return;
+                }
+
+                console.log(`Rendering ${data.apiKeys.length} API keys`);
+                data.apiKeys.forEach(key => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${key.name}</td>
+                        <td>${key.key.substring(0, 12)}...</td>
+                        <td>${formatDateTime(key.created_at)}</td>
+                        <td>${formatDateTime(key.last_used)}</td>
+                        <td>${user.displayName || user.email}</td>
+                        <td>
+                            <span class="badge ${key.status === 'active' ? 'bg-success' : 'bg-danger'}">${key.status}</span>
+                        </td>
+                        <td>
+                            <div class="btn-group">
+                                <button class="btn btn-sm btn-outline-secondary" onclick="copyToClipboard('${key.key}')" ${key.status === 'disabled' ? 'disabled' : ''}>
+                                    <i class="bi bi-clipboard"></i>
+                                </button>
+                                <button class="btn btn-sm ${key.status === 'active' ? 'btn-outline-danger' : 'btn-outline-secondary'}" 
+                                        onclick="disableApiKey('${key.id}')"
+                                        ${key.status === 'disabled' ? 'disabled' : ''}>
+                                    <i class="bi bi-power"></i>
+                                </button>
+                            </div>
+                        </td>
+                    `;
+                    tbody.appendChild(row);
+                });
+            } catch (error) {
+                console.error('Error loading API keys:', error);
+                // Show error message in the table
+                const tbody = document.querySelector('#apiKeysTable tbody');
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="6" class="text-center text-danger">
+                            <div class="alert alert-danger mb-0">
+                                Failed to load API keys: ${error.message}
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            }
+        }
+
+        // Function to create new API key
+        document.getElementById('createApiKeyBtn').addEventListener('click', async function() {
+            const nameInput = document.getElementById('apiKeyName');
+            const name = nameInput.value.trim();
+            const createBtn = this;
+            const createModal = bootstrap.Modal.getInstance(document.getElementById('createApiKeyModal'));
+
+            if (!name) {
+                nameInput.classList.add('is-invalid');
+                return;
+            }
+
+            try {
+                // Disable the button and show loading state
+                createBtn.disabled = true;
+                createBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Creating...';
+
+                const user = firebase.auth().currentUser;
+                if (!user) throw new Error('Please log in to create an API key');
+
+                const token = await user.getIdToken();
+                const response = await fetch('/profile/api-keys', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ name })
+                });
+
+                const data = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to create API key');
+                }
+
+                if (!data.success) {
+                    throw new Error(data.error || 'Failed to create API key');
+                }
+                
+                // Show the success modal with the new key
+                document.getElementById('newApiKey').value = data.apiKey.key;
+                
+                // Hide the create modal and show the success modal
+                createModal.hide();
+                
+                const successModal = new bootstrap.Modal(document.getElementById('apiKeyCreatedModal'));
+                successModal.show();
+
+                // Reset the form
+                nameInput.value = '';
+                nameInput.classList.remove('is-invalid');
+                
+                // Reload the API keys table
+                loadApiKeys();
+            } catch (error) {
+                console.error('Error creating API key:', error);
+                // Show error message in the modal
+                const errorDiv = document.createElement('div');
+                errorDiv.className = 'alert alert-danger mt-3';
+                errorDiv.textContent = error.message;
+                
+                // Remove any existing error messages
+                const existingError = document.querySelector('#createApiKeyForm .alert');
+                if (existingError) {
+                    existingError.remove();
+                }
+                
+                document.getElementById('createApiKeyForm').appendChild(errorDiv);
+            } finally {
+                // Reset button state
+                createBtn.disabled = false;
+                createBtn.innerHTML = 'Create';
+            }
+        });
+
+        // Add input validation for API key name
+        document.getElementById('apiKeyName').addEventListener('input', function() {
+            this.classList.remove('is-invalid');
+            const errorMessage = document.querySelector('#createApiKeyForm .alert');
+            if (errorMessage) {
+                errorMessage.remove();
+            }
+        });
+
+        // Function to copy API key to clipboard
+        function copyApiKey() {
+            const keyInput = document.getElementById('newApiKey');
+            keyInput.select();
+            document.execCommand('copy');
+            alert('API key copied to clipboard!');
+        }
+
+        // Function to copy any text to clipboard
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                alert('Copied to clipboard!');
+            }).catch(err => {
+                console.error('Failed to copy:', err);
+            });
+        }
+
+        // Add the disable API key function
+        async function disableApiKey(keyId) {
+            try {
+                const user = firebase.auth().currentUser;
+                if (!user) throw new Error('Please log in to disable the API key');
+
+                if (!confirm('Are you sure you want to disable this API key? This action cannot be undone.')) {
+                    return;
+                }
+
+                const token = await user.getIdToken();
+                const response = await fetch(`/profile/api-keys/${keyId}/disable`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                const data = await response.json();
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to disable API key');
+                }
+
+                // Reload the API keys table
+                loadApiKeys();
+                
+                // Show success message
+                alert('API key disabled successfully');
+            } catch (error) {
+                console.error('Error disabling API key:', error);
+                alert(`Failed to disable API key: ${error.message}`);
+            }
+        }
+
+        // Load API keys when the page loads
+        document.addEventListener('DOMContentLoaded', loadApiKeys);
+        firebase.auth().onAuthStateChanged((user) => {
+            if (user) {
+                loadApiKeys();
+            }
+        });
+    </script>
+</body>
+</html> 

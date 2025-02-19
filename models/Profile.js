@@ -49,6 +49,10 @@ const profileSchema = new mongoose.Schema({
             return v.replace(/^https?:\/\//, '');
         }
     },
+    raku_ai: {
+        type: mongoose.Schema.Types.Mixed,
+        default: null
+    },
     created_at: { 
         type: Date, 
         default: Date.now 

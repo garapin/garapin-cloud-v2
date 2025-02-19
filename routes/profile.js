@@ -3,6 +3,8 @@ const router = express.Router();
 const admin = require('firebase-admin');
 const User = require('../models/User');
 const Profile = require('../models/Profile');
+const PublicApiKey = require('../models/PublicApiKey');
+const { verifyToken } = require('../middleware/auth');
 
 // Get Firebase config from environment variables
 const firebaseConfig = {
@@ -15,7 +17,149 @@ const firebaseConfig = {
     measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID
 };
 
-// GET request to render the profile page
+// API Routes
+// GET API keys
+router.get('/api-keys', verifyToken, async (req, res) => {
+    console.log('GET /api-keys endpoint hit');
+    try {
+        console.log('Fetching API keys for user:', req.user.provider_uid);
+        
+        const apiKeys = await PublicApiKey.find({ provider_uid: req.user.provider_uid })
+            .sort({ created_at: -1 });
+
+        console.log('Found API keys:', apiKeys.length);
+
+        res.json({
+            success: true,
+            apiKeys: apiKeys.map(key => ({
+                id: key._id,
+                name: key.name,
+                key: key.key,
+                status: key.status,
+                created_at: key.created_at,
+                last_used: key.last_used
+            }))
+        });
+    } catch (error) {
+        console.error('Error fetching API keys:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: 'Failed to fetch API keys',
+            details: error.message 
+        });
+    }
+});
+
+// Create new API key
+router.post('/api-keys', verifyToken, async (req, res) => {
+    console.log('POST /api-keys endpoint hit');
+    try {
+        const { name } = req.body;
+        console.log('Creating new API key with name:', name);
+
+        if (!name) {
+            return res.status(400).json({ 
+                success: false,
+                error: 'Name is required for the API key' 
+            });
+        }
+
+        // Check if name already exists for this user
+        const existingKey = await PublicApiKey.findOne({ 
+            provider_uid: req.user.provider_uid,
+            name: name 
+        });
+
+        if (existingKey) {
+            return res.status(400).json({ 
+                success: false,
+                error: 'An API key with this name already exists' 
+            });
+        }
+
+        // Generate a unique GC key
+        const GC_KEY = process.env.GC_KEY || 'garapin-cloud-default-key';
+        
+        // Generate the API key
+        const apiKey = PublicApiKey.generateKey(req.user.name, GC_KEY);
+
+        // Create new API key record
+        const newApiKey = new PublicApiKey({
+            user_id: req.user._id,
+            provider_uid: req.user.provider_uid,
+            name: name,
+            key: apiKey,
+            status: 'active',
+            created_at: new Date()
+        });
+
+        await newApiKey.save();
+        console.log('New API key created successfully');
+
+        res.json({
+            success: true,
+            apiKey: {
+                name: newApiKey.name,
+                key: newApiKey.key,
+                status: newApiKey.status,
+                created_at: newApiKey.created_at
+            }
+        });
+    } catch (error) {
+        console.error('Error in API key creation:', error);
+        res.status(500).json({ 
+            success: false,
+            error: 'Failed to create API key',
+            details: error.message 
+        });
+    }
+});
+
+// Add new endpoint to disable API key
+router.put('/api-keys/:id/disable', verifyToken, async (req, res) => {
+    try {
+        console.log('Disabling API key:', req.params.id);
+        
+        const apiKey = await PublicApiKey.findOneAndUpdate(
+            { 
+                _id: req.params.id,
+                provider_uid: req.user.provider_uid
+            },
+            { 
+                status: 'disabled',
+                updated_at: new Date()
+            },
+            { new: true }
+        );
+
+        if (!apiKey) {
+            return res.status(404).json({
+                success: false,
+                error: 'API key not found'
+            });
+        }
+
+        res.json({
+            success: true,
+            message: 'API key disabled successfully',
+            apiKey: {
+                id: apiKey._id,
+                name: apiKey.name,
+                status: apiKey.status
+            }
+        });
+    } catch (error) {
+        console.error('Error disabling API key:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to disable API key',
+            details: error.message
+        });
+    }
+});
+
+// Page Routes
+// GET profile page
 router.get('/', async (req, res) => {
     try {
         res.render('profile', { 
@@ -30,32 +174,13 @@ router.get('/', async (req, res) => {
     }
 });
 
-// GET request to fetch user profile data
-router.get('/data', async (req, res) => {
+// GET profile data
+router.get('/data', verifyToken, async (req, res) => {
     try {
-        console.log('Starting profile data fetch...');
-        const authHeader = req.headers.authorization;
-        if (!authHeader || !authHeader.startsWith('Bearer ')) {
-            return res.status(401).json({ error: 'No valid auth token provided' });
-        }
-
-        const token = authHeader.split('Bearer ')[1];
-        const decodedToken = await admin.auth().verifyIdToken(token);
-        console.log('User authenticated:', decodedToken.uid);
+        console.log('Fetching profile data for user:', req.user.provider_uid);
+        const profile = await Profile.findOne({ provider_uid: req.user.provider_uid });
         
-        // Find user and their profile
-        const user = await User.findOne({ provider_uid: decodedToken.uid });
-        if (!user) {
-            console.log('User not found for provider_uid:', decodedToken.uid);
-            return res.status(404).json({ error: 'User not found' });
-        }
-        console.log('Found user:', user._id);
-
-        const profile = await Profile.findOne({ provider_uid: decodedToken.uid });
-        console.log('Found profile:', profile);
-
         if (!profile) {
-            console.log('No profile found, returning default data');
             return res.json({
                 user_type: 'Individu',
                 badan_hukum_name: '',
@@ -67,22 +192,92 @@ router.get('/data', async (req, res) => {
                 },
                 pic: '',
                 phone_number: '',
-                web_address: ''
+                web_address: '',
+                raku_ai: null
             });
         }
 
-        console.log('Returning profile data:', profile);
         res.json({
             user_type: profile.user_type,
             badan_hukum_name: profile.badan_hukum_name,
             address: profile.address,
             pic: profile.pic,
             phone_number: profile.phone_number,
-            web_address: profile.web_address
+            web_address: profile.web_address,
+            raku_ai: profile.raku_ai
         });
     } catch (error) {
-        console.error('Error fetching user data:', error);
-        res.status(500).json({ error: 'Failed to fetch user data' });
+        console.error('Error fetching profile data:', error);
+        res.status(500).json({ error: 'Failed to fetch profile data' });
+    }
+});
+
+// Raku AI request
+router.post('/raku-ai-request', verifyToken, async (req, res) => {
+    try {
+        console.log('Received Raku AI request:', {
+            user_id: req.user._id,
+            provider_uid: req.user.provider_uid
+        });
+
+        // Find or create profile
+        let profile = await Profile.findOne({ provider_uid: req.user.provider_uid });
+        console.log('Existing profile:', profile);
+        
+        if (!profile) {
+            console.log('Creating new profile...');
+            // Create minimal profile for Raku AI request
+            profile = new Profile({
+                provider_uid: req.user.provider_uid,
+                user_id: req.user._id,
+                user_type: 'Individu', // Default value
+                address: {
+                    alamat_lengkap: 'Pending',
+                    provinsi: 'Pending',
+                    kota: 'Pending',
+                    kode_pos: 'Pending'
+                },
+                pic: req.user.name || 'Pending',
+                phone_number: 'Pending'
+            });
+        }
+
+        // Update the profile with Raku AI request data
+        profile.raku_ai = {
+            ...req.body,
+            updated_at: new Date()
+        };
+
+        console.log('Saving profile with Raku AI data:', profile.raku_ai);
+
+        try {
+            await profile.save();
+            console.log('Profile saved successfully');
+        } catch (saveError) {
+            console.error('Error saving profile:', saveError);
+            throw saveError;
+        }
+
+        // Update user's profile reference if not set
+        if (!req.user.profile) {
+            console.log('Updating user profile reference...');
+            await User.findOneAndUpdate(
+                { provider_uid: req.user.provider_uid },
+                { profile: profile._id }
+            );
+        }
+
+        res.json({
+            success: true,
+            message: 'Raku AI request submitted successfully'
+        });
+    } catch (error) {
+        console.error('Error submitting Raku AI request:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to submit Raku AI request',
+            error: error.message
+        });
     }
 });
 

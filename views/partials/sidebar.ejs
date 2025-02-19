@@ -4,12 +4,121 @@
             <img src="/images/garapin-cloud.png" alt="Garapin Cloud" class="img-fluid" style="max-height: 30px;">
         </div>
         <hr class="m-0">
+        <style>
+            .nav-item {
+                position: relative;
+            }
+            .nav-link-toggle {
+                width: 40px;
+                background: transparent;
+                border: none;
+                cursor: pointer;
+                color: rgba(255, 255, 255, 0.8);
+                position: absolute;
+                right: 0;
+                top: 8px;
+                height: 40px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 0;
+                z-index: 2;
+            }
+            .nav-link-toggle:hover {
+                background: rgba(255, 255, 255, 0.1);
+                color: #ffffff;
+            }
+            .nav-link-toggle .bi-chevron-down {
+                transition: transform 0.2s;
+                font-size: 16px;
+            }
+            .nav-link-toggle[aria-expanded="true"] .bi-chevron-down {
+                transform: rotate(180deg);
+            }
+            .nav-link.active {
+                background-color: rgba(255, 255, 255, 0.1);
+            }
+            .nav-link.disabled {
+                color: rgba(255, 255, 255, 0.4) !important;
+                cursor: not-allowed;
+                pointer-events: none;
+                display: flex;
+                flex-direction: column;
+                align-items: flex-start;
+                line-height: 1.2;
+            }
+            .nav-link.disabled i {
+                opacity: 0.4;
+                margin-right: 8px;
+            }
+            .nav-link.disabled .menu-item {
+                display: flex;
+                align-items: center;
+            }
+            .nav-link.disabled .coming-soon {
+                font-size: 12px;
+                margin-left: 25px;
+                margin-top: 4px;
+            }
+        </style>
         <ul class="nav flex-column">
             <li class="nav-item">
                 <a class="nav-link <%= currentPage === 'dashboard' ? 'active' : '' %>" href="/dashboard">
                     <i class="bi bi-house-door"></i>
                     Home
                 </a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link d-flex justify-content-between align-items-center" 
+                   href="/raku-ai">
+                    <div>
+                        <img src="/images/raku-64px.png" alt="Raku AI" style="width: 24px; height: 24px; margin-right: 4px;">
+                        &nbsp;Raku AI
+                    </div>
+                </a>
+                <button class="nav-link-toggle" 
+                   data-bs-toggle="collapse" 
+                   data-bs-target="#rakuAiSubmenu" 
+                   aria-expanded="<%= /^raku-ai/.test(currentPage) ? 'true' : 'false' %>">
+                    <i class="bi bi-chevron-down"></i>
+                </button>
+                <div class="collapse <%= /^raku-ai/.test(currentPage) ? 'show' : '' %>" id="rakuAiSubmenu">
+                    <ul class="nav flex-column ms-3">
+                        <li class="nav-item">
+                            <a class="nav-link <%= currentPage === 'raku-ai-receipt' ? 'active' : '' %>" href="/raku-ai/receipt">
+                                <i class="bi bi-receipt"></i>
+                                Receipt
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link disabled" href="#">
+                                <div class="menu-item">
+                                    <i class="bi bi-megaphone"></i>
+                                    Marketing & Promotion
+                                </div>
+                                <span class="coming-soon">(Coming Soon)</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link disabled" href="#">
+                                <div class="menu-item">
+                                    <i class="bi bi-box"></i>
+                                    Product & Service
+                                </div>
+                                <span class="coming-soon">(Coming Soon)</span>
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link disabled" href="#">
+                                <div class="menu-item">
+                                    <i class="bi bi-calendar-check"></i>
+                                    Order & Reservation
+                                </div>
+                                <span class="coming-soon">(Coming Soon)</span>
+                            </a>
+                        </li>
+                    </ul>
+                </div>
             </li>
             <li class="nav-item">
                 <a class="nav-link <%= currentPage === 'billing' ? 'active' : '' %>" href="/billing">

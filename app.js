@@ -42,8 +42,8 @@ app.use((req, res, next) => {
         "https://www.googleapis.com https://cdn.jsdelivr.net " +
         "https://cdn.tiny.cloud; " +
         "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com " +
-        "https://cdn.jsdelivr.net https://cdn.tiny.cloud; " +
-        "font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net https://cdn.tiny.cloud; " +
+        "https://cdn.jsdelivr.net https://cdn.tiny.cloud https://fonts.cdnfonts.com; " +
+        "font-src 'self' https://fonts.gstatic.com https://cdn.jsdelivr.net https://cdn.tiny.cloud https://fonts.cdnfonts.com; " +
         "img-src 'self' data: https: blob: https://lh3.googleusercontent.com " +
         "https://*.googleusercontent.com https://cdn.tiny.cloud; " +
         "connect-src 'self' https://*.firebaseio.com https://www.googleapis.com " +
@@ -249,8 +249,14 @@ const checkAuth = async (req, res, next) => {
 // Apply middleware
 app.use(checkAuth);
 
+// Mount routes
+const profileRoutes = require('./routes/profile');
+const storeRouter = require('./routes/store');
+
+// Mount profile routes - ensure this comes before the profile redirect middleware
+app.use('/profile', profileRoutes);
+
 // Updated redirect middleware: Only act on GET requests for a logged-in user missing a profile
-// If the request is an AJAX call (req.xhr), return a JSON error; otherwise, do a redirect
 app.use((req, res, next) => {
     if (req.method === 'GET' && req.user && !req.user.profile &&
         !req.path.startsWith('/profile') &&
@@ -268,9 +274,6 @@ app.use((req, res, next) => {
 });
 
 // Routes
-const storeRouter = require('./routes/store');
-app.use('/store', storeRouter);
-
 app.get('/', (req, res) => {
     res.render('login', { firebaseConfig });
 });
@@ -468,8 +471,14 @@ app.get('/dashboard', async (req, res) => {
     });
 });
 
-// Mount profile routes from external file
-app.use('/profile', require('./routes/profile'));
+app.get('/raku-ai', async (req, res) => {
+    res.render('raku-ai', { 
+        firebaseConfig,
+        user: req.user,
+        pageTitle: 'Raku AI',
+        currentPage: 'raku-ai'
+    });
+});
 
 app.get('/store', async (req, res) => {
     try {
