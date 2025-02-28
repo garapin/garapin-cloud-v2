@@ -17,12 +17,14 @@ const upload = multer({
 
 const User = require('./models/User');
 const Application = require('./models/Application');
+const Profile = require('./models/Profile');
 const categoryController = require('./controllers/categoryController');
 const Category = require('./models/Category');
 const InstalledApp = require('./models/InstalledApp');
 const BaseImage = require('./models/BaseImage');
 const applicationController = require('./controllers/backend/applications-backend');
 const baseImageController = require('./controllers/backend/base-images-backend');
+const receiptRoutes = require('./controllers/receiptAI');
 
 const app = express();
 
@@ -205,7 +207,8 @@ const firebaseApp = initializeApp(firebaseConfig);
 
 // Middleware
 app.use(express.static('public'));
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.set('view engine', 'ejs');
 app.use(session({
     secret: process.env.SESSION_SECRET || 'your-secret-key',
@@ -252,6 +255,9 @@ app.use(checkAuth);
 // Mount routes
 const profileRoutes = require('./routes/profile');
 const storeRouter = require('./routes/store');
+
+// Mount receipt routes
+app.use('/receipt', receiptRoutes);
 
 // Mount profile routes - ensure this comes before the profile redirect middleware
 app.use('/profile', profileRoutes);
@@ -477,6 +483,15 @@ app.get('/raku-ai', async (req, res) => {
         user: req.user,
         pageTitle: 'Raku AI',
         currentPage: 'raku-ai'
+    });
+});
+
+app.get('/raku-ai/receipt', async (req, res) => {
+    res.render('receipt', { 
+        firebaseConfig,
+        user: req.user,
+        pageTitle: 'Receipt',
+        currentPage: 'raku-ai-receipt'
     });
 });
 
@@ -1221,6 +1236,64 @@ app.delete('/api/base-images/:id', baseImageController.deleteBaseImage);
 
 // Applications backend routes (all application routes are handled here)
 app.use('/api/applications', verifyToken, require('./controllers/backend/applications-backend'));
+
+// Add Raku AI application info endpoint
+app.get('/api/raku-ai/application-info', verifyToken, async (req, res) => {
+    try {
+        console.log('Fetching Raku AI application info for user:', req.user.provider_uid);
+        
+        // Find the profile using the imported Profile model
+        const profile = await Profile.findOne({ 
+            provider_uid: req.user.provider_uid 
+        }).lean();
+        
+        console.log('Found profile:', profile ? 'Yes' : 'No');
+        if (profile) {
+            console.log('Raku AI data:', profile.raku_ai);
+        }
+
+        if (!profile || !profile.raku_ai) {
+            console.log('No Raku AI profile found for user');
+            return res.status(404).json({
+                error: 'Raku AI profile not found',
+                applicationName: '-',
+                applicationType: '-',
+                platform: '-',
+                status: '-',
+                receiptsSent: 0,
+                cost: 0,
+                dateRange: '-'
+            });
+        }
+
+        // Return formatted data from profile.raku_ai
+        const response = {
+            applicationName: profile.raku_ai.app_name || '-',
+            applicationType: profile.raku_ai.business_type || '-',
+            platform: profile.raku_ai.platform || '-',
+            status: profile.raku_ai.status || '-',
+            receiptsSent: profile.raku_ai.features?.receipt?.selected ? 100 : 0, // Placeholder based on feature selection
+            cost: 100, // Placeholder for now
+            dateRange: '1-Feb-2025 - 28-Feb-2025' // Placeholder for now
+        };
+
+        console.log('Sending response:', response);
+        res.json(response);
+    } catch (error) {
+        console.error('Error fetching Raku AI application info:', error);
+        res.status(500).json({
+            error: 'Failed to fetch application info',
+            details: error.message,
+            applicationName: 'Error',
+            applicationType: '-',
+            platform: '-',
+            status: 'Error',
+            receiptsSent: 0,
+            cost: 0,
+            dateRange: '-'
+        });
+    }
+});
 
 const PORT = 8000;
 app.listen(PORT, () => {

@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Garapin Cloud - Receipt</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="/css/style.css">
+    <style>
+        .receipt-card {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: #FFD699 !important;
+            border: none;
+            border-radius: 15px;
+            height: 100%;
+        }
+        .receipt-card .card-body {
+            padding: 0.75rem !important;
+            min-height: 144px;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+        }
+        .receipt-card h3 {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+        .receipt-info {
+            color: #000;
+            margin-bottom: 0;
+        }
+        .receipt-info .label {
+            font-weight: normal;
+        }
+        .receipt-info .value {
+            font-weight: bold;
+        }
+        .receipt-info .d-flex {
+            margin-bottom: 0.4rem !important;
+        }
+        .receipt-stats {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            width: 100%;
+            margin-top: 4px;
+        }
+        .receipt-stats .stat-item {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+            margin-bottom: 4px;
+        }
+        .receipt-stats .stat-label {
+            color: #000;
+        }
+        .receipt-stats .stat-value {
+            color: #000;
+            font-weight: bold;
+        }
+        .date-range {
+            color: #000;
+            text-align: right;
+            margin-bottom: 8px;
+        }
+        .status-text {
+            color: #28a745;
+        }
+        .row.g-4 {
+            --bs-gutter-y: 1rem !important;
+        }
+    </style>
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-auth-compat.js"></script>
+</head>
+<body>
+    <div class="container-fluid" data-firebase-config='<%= JSON.stringify(firebaseConfig) %>'>
+        <div class="row">
+            <%- include('partials/sidebar', {currentPage: 'raku-ai-receipt'}) %>
+
+            <!-- Main content -->
+            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 bg-light">
+                <%- include('partials/header', {pageTitle: 'Receipt'}) %>
+
+                <!-- Receipt content -->
+                <div class="row g-4">
+                    <!-- Application Info Card -->
+                    <div class="col-12 col-lg-6">
+                        <div class="card receipt-card">
+                            <div class="card-body">
+                                <div class="receipt-info">
+                                    <div class="d-flex justify-content-between">
+                                        <span class="label">Application Name</span>
+                                        <span class="value" id="appName">-</span>
+                                    </div>
+                                    <div class="d-flex justify-content-between">
+                                        <span class="label">Application Type</span>
+                                        <span class="value" id="appType">-</span>
+                                    </div>
+                                    <div class="d-flex justify-content-between">
+                                        <span class="label">Platform</span>
+                                        <span class="value" id="platform">-</span>
+                                    </div>
+                                    <div class="d-flex justify-content-between">
+                                        <span class="label">Status</span>
+                                        <span class="value status-text" id="status">-</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Receipt Statistics Card -->
+                    <div class="col-12 col-lg-6">
+                        <div class="card receipt-card">
+                            <div class="card-body">
+                                <div class="date-range" id="dateRange">1-Feb-2025 - 28-Feb-2025</div>
+                                <div class="receipt-stats">
+                                    <div class="w-100">
+                                        <div class="stat-item">
+                                            <span class="stat-label">Receipt Terkirim</span>
+                                            <span class="stat-value" id="receiptsSent">100</span>
+                                        </div>
+                                        <div class="stat-item">
+                                            <span class="stat-label">Cost</span>
+                                            <span class="stat-value" id="cost">100</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- API Documentation Section -->
+                <div class="row mt-3">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-body">
+                                <h5 class="card-title">API Documentation</h5>
+                                <div class="api-docs mt-2">
+                                    <pre class="bg-dark text-light p-3 rounded"><code>curl -X POST https://hermes.raku.id/receipt/send-receipt \
+  -H "Accept: application/json" \
+  -H "Authorization: Bearer {api-key}" \
+  -H "destination_number: {phone number}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "merchantName": "{nama merchant}",
+    "alamat": "{alamat merchant}",
+    "invoiceNumber": "{no invoice}",
+    "total": {total transaksi},
+    "invoicePDFfile": "{base64_encoded_pdf_content}"
+  }'</code></pre>
+                                </div>
+                                <div class="mt-4">
+                                    <h5 class="card-title">API Simulation</h5>
+                                    <form id="apiSimulationForm" class="mt-3">
+                                        <div class="mb-4">
+                                            <h6 class="mb-3">Headers</h6>
+                                            <div class="mb-3">
+                                                <label class="form-label">Authorization Bearer</label>
+                                                <input type="text" class="form-control" id="apiKey" placeholder="Enter API key">
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">Destination Number</label>
+                                                <input type="text" class="form-control" id="phoneNumber" placeholder="Enter phone number">
+                                            </div>
+                                        </div>
+
+                                        <div class="mb-4">
+                                            <h6 class="mb-3">Request Data</h6>
+                                            <div class="mb-3">
+                                                <label class="form-label">Merchant Name</label>
+                                                <input type="text" class="form-control" id="merchantName" placeholder="Enter merchant name">
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">Alamat</label>
+                                                <textarea class="form-control" id="alamat" rows="2" placeholder="Enter merchant address"></textarea>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">Invoice Number</label>
+                                                <input type="text" class="form-control" id="invoiceNumber" placeholder="Enter invoice number">
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">Total</label>
+                                                <input type="number" class="form-control" id="total" placeholder="Enter total transaction">
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="form-label">Invoice PDF File</label>
+                                                <input type="file" class="form-control" id="invoicePDFfile" accept="application/pdf" onchange="convertToBase64(this)">
+                                                <input type="hidden" id="invoicePDFbase64">
+                                            </div>
+                                        </div>
+
+                                        <div class="d-flex align-items-center">
+                                            <button type="submit" class="btn btn-primary" id="sendRequestBtn">Send Request</button>
+                                            <div class="spinner-border spinner-border-sm text-primary ms-2 d-none" id="loadingSpinner" role="status">
+                                                <span class="visually-hidden">Loading...</span>
+                                            </div>
+                                        </div>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/js/controllers/headerController.js"></script>
+    <script src="/js/controllers/receiptController.js"></script>
+    <script>
+        // Function to convert file to base64
+        function convertToBase64(fileInput) {
+            const file = fileInput.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const base64String = e.target.result.split(',')[1];
+                    document.getElementById('invoicePDFbase64').value = base64String;
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        // Function to toggle loading state
+        function setLoading(isLoading) {
+            const button = document.getElementById('sendRequestBtn');
+            const spinner = document.getElementById('loadingSpinner');
+            
+            if (isLoading) {
+                button.disabled = true;
+                spinner.classList.remove('d-none');
+            } else {
+                button.disabled = false;
+                spinner.classList.add('d-none');
+            }
+        }
+
+        document.getElementById('apiSimulationForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            // Show loading state
+            setLoading(true);
+            
+            const requestData = {
+                merchantName: document.getElementById('merchantName').value,
+                alamat: document.getElementById('alamat').value,
+                invoiceNumber: document.getElementById('invoiceNumber').value,
+                total: document.getElementById('total').value,
+                invoicePDFfile: document.getElementById('invoicePDFbase64').value
+            };
+
+            try {
+                const response = await fetch('/receipt/send-receipt', {
+                    method: 'POST',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${document.getElementById('apiKey').value}`,
+                        'destination_number': document.getElementById('phoneNumber').value
+                    },
+                    body: JSON.stringify(requestData)
+                });
+
+                let result;
+                const contentType = response.headers.get('content-type');
+                
+                if (contentType && contentType.includes('application/json')) {
+                    result = await response.json();
+                } else {
+                    // Handle non-JSON response
+                    const text = await response.text();
+                    result = {
+                        error: 'Unexpected response format',
+                        details: text.substring(0, 200) // Only show first 200 chars of error
+                    };
+                }
+
+                if (!response.ok) {
+                    throw new Error(result.error || result.details || 'Failed to send receipt');
+                }
+
+                // Show success message
+                alert(result.message || 'Receipt sent successfully');
+                
+                // Clear form
+                e.target.reset();
+                document.getElementById('invoicePDFbase64').value = '';
+                
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error: ' + (error.message || 'Failed to send receipt. Please try again.'));
+            } finally {
+                // Hide loading state
+                setLoading(false);
+            }
+        });
+    </script>
+</body>
+</html> 

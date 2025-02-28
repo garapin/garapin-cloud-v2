@@ -50,8 +50,18 @@ const profileSchema = new mongoose.Schema({
         }
     },
     raku_ai: {
-        type: mongoose.Schema.Types.Mixed,
-        default: null
+        app_name: String,
+        business_type: String,
+        platform: String,
+        status: String,
+        features: {
+            receipt: {
+                selected: {
+                    type: Boolean,
+                    default: false
+                }
+            }
+        }
     },
     created_at: { 
         type: Date, 
