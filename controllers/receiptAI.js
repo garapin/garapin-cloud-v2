@@ -136,7 +136,8 @@ router.post('/send-receipt', verifyApiKey, express.json({ limit: '50mb' }), asyn
                     alamat: req.body.alamat,
                     invoiceNumber: req.body.invoiceNumber,
                     total: total,
-                    invoicePDFfile: req.body.invoicePDFfile
+                    invoicePDFfile: req.body.invoicePDFfile,
+                    user_id: req.apiKey.user_id
                 }),
                 signal: controller.signal
             });

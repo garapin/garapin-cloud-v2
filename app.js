@@ -25,6 +25,7 @@ const BaseImage = require('./models/BaseImage');
 const applicationController = require('./controllers/backend/applications-backend');
 const baseImageController = require('./controllers/backend/base-images-backend');
 const receiptRoutes = require('./controllers/receiptAI');
+const paymentRoutes = require('./routes/payments');
 
 const app = express();
 
@@ -258,6 +259,7 @@ const storeRouter = require('./routes/store');
 
 // Mount receipt routes
 app.use('/receipt', receiptRoutes);
+app.use('/payments', paymentRoutes);
 
 // Mount profile routes - ensure this comes before the profile redirect middleware
 app.use('/profile', profileRoutes);
@@ -492,6 +494,16 @@ app.get('/raku-ai/receipt', async (req, res) => {
         user: req.user,
         pageTitle: 'Receipt',
         currentPage: 'raku-ai-receipt'
+    });
+});
+
+// Add Credit page
+app.get('/raku-ai/tambah-saldo', async (req, res) => {
+    res.render('tambah-saldo', { 
+        firebaseConfig,
+        user: req.user,
+        pageTitle: 'Tambah Saldo',
+        currentPage: 'raku-ai'
     });
 });
 

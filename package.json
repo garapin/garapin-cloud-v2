@@ -24,6 +24,8 @@
     "node-fetch": "^2.7.0",
     "passport": "^0.7.0",
     "passport-google-oauth20": "^2.0.0",
-    "string-similarity": "^4.0.4"
+    "string-similarity": "^4.0.4",
+    "uuid": "^11.1.0",
+    "xendit-node": "^6.2.0"
   }
 }

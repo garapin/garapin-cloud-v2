@@ -158,6 +158,38 @@ router.put('/api-keys/:id/disable', verifyToken, async (req, res) => {
     }
 });
 
+// GET user data with amount
+router.get('/user-data', verifyToken, async (req, res) => {
+    try {
+        console.log('Fetching user data for user ID:', req.user._id);
+        
+        // Find user by _id and select only necessary fields
+        const user = await User.findById(req.user._id).select('_id name email amount');
+        
+        if (!user) {
+            return res.status(404).json({ 
+                success: false, 
+                error: 'User not found' 
+            });
+        }
+        
+        console.log('User data retrieved:', user);
+        
+        res.status(200).json({
+            _id: user._id,
+            name: user.name,
+            email: user.email,
+            amount: user.amount || 0
+        });
+    } catch (error) {
+        console.error('Error fetching user data:', error);
+        res.status(500).json({ 
+            success: false, 
+            error: 'Failed to fetch user data' 
+        });
+    }
+});
+
 // Page Routes
 // GET profile page
 router.get('/', async (req, res) => {

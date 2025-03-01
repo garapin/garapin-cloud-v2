@@ -35,8 +35,8 @@
                         <div class="card text-white h-100 raku-card" style="background-color: #011168;">
                             <div class="card-body p-3 d-flex flex-column">
                                 <h5 class="card-title mb-3" style="color: #ffffff; font-weight: normal;">Saldo</h5>
-                                <h2 class="card-text mb-4" style="font-size: 3.5rem;">Rp.10.000.000</h2>
-                                <button class="btn btn-primary mt-auto">Tambah Saldo</button>
+                                <h2 class="card-text mb-4" style="font-size: 3.5rem;" id="userSaldoDisplay">Loading...</h2>
+                                <a href="/raku-ai/tambah-saldo" class="btn btn-primary mt-auto">Tambah Saldo</a>
                             </div>
                         </div>
                     </div>
@@ -435,6 +435,33 @@
                 if (!user) return;
 
                 const token = await user.getIdToken();
+                
+                // First, get the user's amount from the users table
+                const userResponse = await fetch('/profile/user-data', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                if (userResponse.ok) {
+                    const userData = await userResponse.json();
+                    console.log('Received user data:', userData);
+                    
+                    // Update user's saldo display with amount from the users table
+                    if (userData && userData.amount !== undefined) {
+                        const formattedAmount = new Intl.NumberFormat('id-ID', {
+                            style: 'currency',
+                            currency: 'IDR',
+                            minimumFractionDigits: 0
+                        }).format(userData.amount);
+                        
+                        document.getElementById('userSaldoDisplay').textContent = formattedAmount;
+                    } else {
+                        document.getElementById('userSaldoDisplay').textContent = 'Rp.0';
+                    }
+                }
+                
+                // Then get the Raku AI request data
                 const response = await fetch('/profile/data', {
                     headers: {
                         'Authorization': `Bearer ${token}`
@@ -444,6 +471,7 @@
                 if (response.ok) {
                     const data = await response.json();
                     console.log('Received profile data:', data);
+                    
                     if (data.raku_ai) {
                         if (data.raku_ai.status === 'Approved') {
                             // Change title and show approved view

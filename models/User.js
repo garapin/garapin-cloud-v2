@@ -22,6 +22,7 @@ const userSchema = new mongoose.Schema({
     pic: { type: String },
     phone_number: { type: String },
     web_address: { type: String },
+    amount: { type: Number, default: 0 },
     created_at: { type: Date, default: Date.now },
     updated_at: { type: Date, default: Date.now }
 }, {
