@@ -606,47 +606,72 @@ router.post('/callback', async function(req, res) {
         const callbackData = req.body;
         console.log('Xendit Callback:', callbackData);
         
-        // Update the billing record based on callback
+        // Handle both direct simulation format and actual Xendit webhook format
+        let qrId = null;
+        let status = null;
+        
+        // Check if this is our simulated format (simple object with status and qr_id)
         if (callbackData.status === 'COMPLETED' && callbackData.qr_id) {
-            const billing = await Billing.findOne({ xendit_id: callbackData.qr_id });
-            
-            if (billing) {
-                // Update billing status
-                billing.status = 'paid';
-                billing.updated_at = Date.now();
-                await billing.save();
-                
-                // Update the user's balance by adding the payment amount
-                const updatedUser = await User.findByIdAndUpdate(
-                    billing.user_id, 
-                    { $inc: { amount: billing.amount } },
-                    { new: true }
-                );
-                
-                if (updatedUser) {
-                    console.log(`User balance updated: User ID ${updatedUser._id}, New balance: ${updatedUser.amount}`);
-                    
-                    // If we have an active session for this user, update the session data
-                    // This will be used on client side to show updated balance
-                    if (req.session && req.session.user && req.session.user._id.toString() === updatedUser._id.toString()) {
-                        req.session.user = updatedUser;
-                        req.session.paymentSuccess = {
-                            message: 'Payment has been successfully processed.',
-                            amount: billing.amount,
-                            redirectTo: '/raku-ai'
-                        };
-                    }
-                }
-            }
+            qrId = callbackData.qr_id;
+            status = 'COMPLETED';
+        } 
+        // Check if this is actual Xendit webhook format (with event and nested data structure)
+        else if (callbackData.event === 'qr.payment' && callbackData.data) {
+            qrId = callbackData.data.qr_id;
+            status = callbackData.data.status === 'SUCCEEDED' ? 'COMPLETED' : callbackData.data.status;
         }
         
-        // Acknowledge the webhook
+        // Process the payment if we have a valid QR ID and successful status
+        if ((status === 'COMPLETED' || status === 'SUCCEEDED') && qrId) {
+            const billing = await Billing.findOne({ xendit_id: qrId });
+            
+            if (billing) {
+                // Ensure we don't process the same payment twice
+                if (billing.status !== 'paid') {
+                    // Update billing status
+                    billing.status = 'paid';
+                    billing.updated_at = Date.now();
+                    await billing.save();
+                    
+                    // Update the user's balance by adding the payment amount
+                    const updatedUser = await User.findByIdAndUpdate(
+                        billing.user_id, 
+                        { $inc: { amount: billing.amount } },
+                        { new: true }
+                    );
+                    
+                    if (updatedUser) {
+                        console.log(`User balance updated: User ID ${updatedUser._id}, New balance: ${updatedUser.amount}`);
+                        
+                        // If we have an active session for this user, update the session data
+                        // This will be used on client side to show updated balance
+                        if (req.session && req.session.user && req.session.user._id.toString() === updatedUser._id.toString()) {
+                            req.session.user = updatedUser;
+                            req.session.paymentSuccess = {
+                                message: 'Payment has been successfully processed.',
+                                amount: billing.amount,
+                                redirectTo: '/raku-ai'
+                            };
+                        }
+                    }
+                } else {
+                    console.log(`Payment ${qrId} already processed. Skipping.`);
+                }
+            } else {
+                console.log(`Billing record for payment ${qrId} not found.`);
+            }
+        } else {
+            console.log(`Invalid or incomplete callback data. Status: ${status}, QR ID: ${qrId}`);
+        }
+        
+        // Acknowledge the webhook - always return 200 for webhooks
         return res.status(200).json({ success: true });
     } catch (error) {
         console.error('Error processing callback:', error);
-        return res.status(500).json({
+        // Still return 200 to acknowledge webhook receipt, but include error info
+        return res.status(200).json({
             success: false,
-            message: 'Failed to process callback',
+            message: 'Error processing callback',
             error: error.message
         });
     }
