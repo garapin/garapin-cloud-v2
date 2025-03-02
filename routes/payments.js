@@ -805,85 +805,114 @@ router.post('/callback', async function(req, res) {
         const callbackData = req.body;
         console.log('Xendit Callback:', JSON.stringify(callbackData, null, 2));
         
-        // Handle both direct simulation format and actual Xendit webhook format
-        let qrId = null;
+        // Handle multiple Xendit callback formats
+        let paymentId = null;
         let status = null;
         let amount = null;
         
         // Check if this is our simulated format (simple object with status and qr_id)
         if (callbackData.status === 'COMPLETED' && callbackData.qr_id) {
-            qrId = callbackData.qr_id;
+            paymentId = callbackData.qr_id;
             status = 'COMPLETED';
         } 
         // Check if this is actual Xendit webhook format (with event and nested data structure)
         else if (callbackData.event === 'qr.payment' && callbackData.data) {
-            qrId = callbackData.data.qr_id;
+            paymentId = callbackData.data.qr_id;
             // Translate Xendit's 'SUCCEEDED' status to our expected 'COMPLETED'
             status = callbackData.data.status === 'SUCCEEDED' ? 'COMPLETED' : callbackData.data.status;
             amount = callbackData.data.amount;
         }
+        // Invoice payment callback format
+        else if (callbackData.status && callbackData.id) {
+            paymentId = callbackData.id; // For invoice payments, use the invoice ID
+            status = callbackData.status;
+            amount = callbackData.paid_amount || callbackData.amount;
+        }
         
-        console.log(`Processing payment with QR ID: ${qrId}, Status: ${status}`);
+        console.log(`Processing payment with ID: ${paymentId}, Status: ${status}`);
         
-        // Process the payment if we have a valid QR ID and successful status
-        if ((status === 'COMPLETED' || status === 'SUCCEEDED') && qrId) {
-            const billing = await Billing.findOne({ xendit_id: qrId });
+        // Process the payment if we have a valid ID and successful status
+        if ((status === 'COMPLETED' || status === 'SUCCEEDED' || status === 'PAID') && paymentId) {
+            // Try to find by xendit_id first
+            let billing = await Billing.findOne({ xendit_id: paymentId });
             
-            if (billing) {
-                // Ensure we don't process the same payment twice
-                if (billing.status !== 'paid') {
-                    console.log(`Found billing record: ${billing._id}, Current status: ${billing.status}`);
+            // If not found by xendit_id, try searching in xendit_hit.id
+            if (!billing) {
+                billing = await Billing.findOne({ 'xendit_hit.id': paymentId });
+                
+                // If still not found, log the issue
+                if (!billing) {
+                    console.log(`Billing record for payment ${paymentId} not found. Checking all payment records...`);
                     
-                    // Update billing status and save the complete callback data
-                    billing.status = 'paid';
-                    billing.updated_at = Date.now();
-                    billing.xendit_callback = callbackData; // Store the complete callback response
-                    billing.payment_time = new Date();
-                    await billing.save();
+                    // Log recent billing records for debugging
+                    const recentBillings = await Billing.find().sort({ created_at: -1 }).limit(5);
+                    console.log('Recent billing records:', recentBillings.map(b => ({ 
+                        id: b._id, 
+                        xendit_id: b.xendit_id, 
+                        xendit_hit_id: b.xendit_hit?.id,
+                        status: b.status
+                    })));
                     
-                    console.log(`Updated billing status to 'paid' and saved Xendit callback data`);
+                    return res.status(200).json({ 
+                        success: false, 
+                        message: 'Billing record not found' 
+                    });
+                }
+            }
+            
+            // Ensure we don't process the same payment twice
+            if (billing.status !== 'paid') {
+                console.log(`Found billing record: ${billing._id}, Current status: ${billing.status}`);
+                
+                // Update billing status and save the complete callback data
+                billing.status = 'paid';
+                billing.updated_at = Date.now();
+                billing.xendit_callback = callbackData; // Store the complete callback response
+                billing.payment_time = new Date();
+                await billing.save();
+                
+                console.log(`Updated billing status to 'paid' and saved Xendit callback data`);
+                
+                // Update the user's balance by adding the payment amount
+                const updatedUser = await User.findByIdAndUpdate(
+                    billing.user_id, 
+                    { $inc: { amount: billing.amount } },
+                    { new: true }
+                );
+                
+                if (updatedUser) {
+                    console.log(`User balance updated: User ID ${updatedUser._id}, New balance: ${updatedUser.amount}`);
                     
-                    // Update the user's balance by adding the payment amount
-                    const updatedUser = await User.findByIdAndUpdate(
-                        billing.user_id, 
-                        { $inc: { amount: billing.amount } },
-                        { new: true }
-                    );
+                    // Store the payment success info in the global object for session access
+                    // This ensures it's available even if the user who made the request
+                    // doesn't have an active session
+                    global.paymentSuccessInfo = {
+                        userId: updatedUser._id.toString(),
+                        message: 'Payment has been successfully processed.',
+                        amount: billing.amount,
+                        redirectTo: '/raku-ai',
+                        timestamp: new Date().getTime()
+                    };
                     
-                    if (updatedUser) {
-                        console.log(`User balance updated: User ID ${updatedUser._id}, New balance: ${updatedUser.amount}`);
-                        
-                        // Store the payment success info in the global object for session access
-                        // This ensures it's available even if the user who made the request
-                        // doesn't have an active session
-                        global.paymentSuccessInfo = {
-                            userId: updatedUser._id.toString(),
+                    // If there's an active session for this user, also store it there
+                    if (req.session && req.session.user && req.session.user._id.toString() === updatedUser._id.toString()) {
+                        console.log(`Updating session for user ${req.session.user._id}`);
+                        req.session.user = updatedUser;
+                        req.session.paymentSuccess = {
                             message: 'Payment has been successfully processed.',
                             amount: billing.amount,
-                            redirectTo: '/raku-ai',
-                            timestamp: new Date().getTime()
+                            redirectTo: '/raku-ai'
                         };
-                        
-                        // If there's an active session for this user, also store it there
-                        if (req.session && req.session.user && req.session.user._id.toString() === updatedUser._id.toString()) {
-                            console.log(`Updating session for user ${req.session.user._id}`);
-                            req.session.user = updatedUser;
-                            req.session.paymentSuccess = {
-                                message: 'Payment has been successfully processed.',
-                                amount: billing.amount,
-                                redirectTo: '/raku-ai'
-                            };
-                            console.log(`Session updated with payment success info`);
-                        }
+                        console.log(`Session updated with payment success info`);
                     }
                 } else {
-                    console.log(`Payment ${qrId} already processed. Skipping.`);
+                    console.error(`Failed to update user balance for billing: ${billing._id}`);
                 }
             } else {
-                console.log(`Billing record for payment ${qrId} not found.`);
+                console.log(`Payment ${paymentId} already processed. Skipping.`);
             }
         } else {
-            console.log(`Invalid or incomplete callback data. Status: ${status}, QR ID: ${qrId}`);
+            console.log(`Invalid or incomplete callback data. Status: ${status}, Payment ID: ${paymentId}`);
         }
         
         // Acknowledge the webhook - always return 200 for webhooks
@@ -910,83 +939,114 @@ router.post('/api/payment/callback', async function(req, res) {
         const callbackData = req.body;
         console.log('Xendit API Callback:', JSON.stringify(callbackData, null, 2));
         
-        // Handle both direct simulation format and actual Xendit webhook format
-        let qrId = null;
+        // Handle multiple Xendit callback formats
+        let paymentId = null;
         let status = null;
         let amount = null;
         
         // Check if this is our simulated format (simple object with status and qr_id)
         if (callbackData.status === 'COMPLETED' && callbackData.qr_id) {
-            qrId = callbackData.qr_id;
+            paymentId = callbackData.qr_id;
             status = 'COMPLETED';
         } 
         // Check if this is actual Xendit webhook format (with event and nested data structure)
         else if (callbackData.event === 'qr.payment' && callbackData.data) {
-            qrId = callbackData.data.qr_id;
+            paymentId = callbackData.data.qr_id;
             // Translate Xendit's 'SUCCEEDED' status to our expected 'COMPLETED'
             status = callbackData.data.status === 'SUCCEEDED' ? 'COMPLETED' : callbackData.data.status;
             amount = callbackData.data.amount;
         }
+        // Invoice payment callback format
+        else if (callbackData.status && callbackData.id) {
+            paymentId = callbackData.id; // For invoice payments, use the invoice ID
+            status = callbackData.status;
+            amount = callbackData.paid_amount || callbackData.amount;
+        }
         
-        console.log(`API callback: Processing payment with QR ID: ${qrId}, Status: ${status}`);
+        console.log(`API callback: Processing payment with ID: ${paymentId}, Status: ${status}`);
         
-        // Process the payment if we have a valid QR ID and successful status
-        if ((status === 'COMPLETED' || status === 'SUCCEEDED') && qrId) {
-            const billing = await Billing.findOne({ xendit_id: qrId });
+        // Process the payment if we have a valid ID and successful status
+        if ((status === 'COMPLETED' || status === 'SUCCEEDED' || status === 'PAID') && paymentId) {
+            // Try to find by xendit_id first
+            let billing = await Billing.findOne({ xendit_id: paymentId });
             
-            if (billing) {
-                // Ensure we don't process the same payment twice
-                if (billing.status !== 'paid') {
-                    console.log(`Found billing record: ${billing._id}, Current status: ${billing.status}`);
+            // If not found by xendit_id, try searching in xendit_hit.id
+            if (!billing) {
+                billing = await Billing.findOne({ 'xendit_hit.id': paymentId });
+                
+                // If still not found, log the issue
+                if (!billing) {
+                    console.log(`Billing record for payment ${paymentId} not found. Checking all payment records...`);
                     
-                    // Update billing status and save the complete callback data
-                    billing.status = 'paid';
-                    billing.updated_at = Date.now();
-                    billing.xendit_callback = callbackData; // Store the complete callback response
-                    billing.payment_time = new Date();
-                    await billing.save();
+                    // Log recent billing records for debugging
+                    const recentBillings = await Billing.find().sort({ created_at: -1 }).limit(5);
+                    console.log('Recent billing records:', recentBillings.map(b => ({ 
+                        id: b._id, 
+                        xendit_id: b.xendit_id, 
+                        xendit_hit_id: b.xendit_hit?.id,
+                        status: b.status
+                    })));
                     
-                    console.log(`Updated billing status to 'paid' and saved Xendit callback data`);
+                    return res.status(200).json({ 
+                        success: false, 
+                        message: 'Billing record not found' 
+                    });
+                }
+            }
+            
+            // Ensure we don't process the same payment twice
+            if (billing.status !== 'paid') {
+                console.log(`Found billing record: ${billing._id}, Current status: ${billing.status}`);
+                
+                // Update billing status and save the complete callback data
+                billing.status = 'paid';
+                billing.updated_at = Date.now();
+                billing.xendit_callback = callbackData; // Store the complete callback response
+                billing.payment_time = new Date();
+                await billing.save();
+                
+                console.log(`Updated billing status to 'paid' and saved Xendit callback data`);
+                
+                // Update the user's balance by adding the payment amount
+                const updatedUser = await User.findByIdAndUpdate(
+                    billing.user_id, 
+                    { $inc: { amount: billing.amount } },
+                    { new: true }
+                );
+                
+                if (updatedUser) {
+                    console.log(`User balance updated: User ID ${updatedUser._id}, New balance: ${updatedUser.amount}`);
                     
-                    // Update the user's balance by adding the payment amount
-                    const updatedUser = await User.findByIdAndUpdate(
-                        billing.user_id, 
-                        { $inc: { amount: billing.amount } },
-                        { new: true }
-                    );
+                    // Store the payment success info in the global object for session access
+                    // This ensures it's available even if the user who made the request
+                    // doesn't have an active session
+                    global.paymentSuccessInfo = {
+                        userId: updatedUser._id.toString(),
+                        message: 'Payment has been successfully processed.',
+                        amount: billing.amount,
+                        redirectTo: '/raku-ai',
+                        timestamp: new Date().getTime()
+                    };
                     
-                    if (updatedUser) {
-                        console.log(`User balance updated: User ID ${updatedUser._id}, New balance: ${updatedUser.amount}`);
-                        
-                        // Store the payment success info in the global object for session access
-                        global.paymentSuccessInfo = {
-                            userId: updatedUser._id.toString(),
+                    // If there's an active session for this user, also store it there
+                    if (req.session && req.session.user && req.session.user._id.toString() === updatedUser._id.toString()) {
+                        console.log(`Updating session for user ${req.session.user._id}`);
+                        req.session.user = updatedUser;
+                        req.session.paymentSuccess = {
                             message: 'Payment has been successfully processed.',
                             amount: billing.amount,
-                            redirectTo: '/raku-ai',
-                            timestamp: new Date().getTime()
+                            redirectTo: '/raku-ai'
                         };
-                        
-                        // If there's an active session for this user, also store it there
-                        if (req.session && req.session.user && req.session.user._id.toString() === updatedUser._id.toString()) {
-                            console.log(`Updating session for user ${req.session.user._id}`);
-                            req.session.user = updatedUser;
-                            req.session.paymentSuccess = {
-                                message: 'Payment has been successfully processed.',
-                                amount: billing.amount,
-                                redirectTo: '/raku-ai'
-                            };
-                            console.log(`Session updated with payment success info`);
-                        }
+                        console.log(`Session updated with payment success info`);
                     }
                 } else {
-                    console.log(`Payment ${qrId} already processed. Skipping.`);
+                    console.error(`Failed to update user balance for billing: ${billing._id}`);
                 }
             } else {
-                console.log(`Billing record for payment ${qrId} not found.`);
+                console.log(`Payment ${paymentId} already processed. Skipping.`);
             }
         } else {
-            console.log(`Invalid or incomplete callback data. Status: ${status}, QR ID: ${qrId}`);
+            console.log(`Invalid or incomplete callback data. Status: ${status}, Payment ID: ${paymentId}`);
         }
         
         // Acknowledge the webhook - always return 200 for webhooks

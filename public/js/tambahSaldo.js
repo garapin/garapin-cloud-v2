@@ -315,7 +315,7 @@ document.addEventListener('DOMContentLoaded', function() {
             description: `Topup saldo user: ${userName || userEmail || userId}`,
             customer: customerData,
             invoice_duration: 1800, // 30 minutes in seconds
-            success_redirect_url: `${window.location.origin}/raku-ai`,
+            success_redirect_url: `${document.querySelector('[data-base-url]').dataset.baseUrl || window.location.origin}/raku-ai`,
             currency: "IDR"
         };
         
