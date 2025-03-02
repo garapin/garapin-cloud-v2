@@ -604,11 +604,12 @@ router.post('/callback', async function(req, res) {
     try {
         // Get the callback data from Xendit
         const callbackData = req.body;
-        console.log('Xendit Callback:', callbackData);
+        console.log('Xendit Callback:', JSON.stringify(callbackData, null, 2));
         
         // Handle both direct simulation format and actual Xendit webhook format
         let qrId = null;
         let status = null;
+        let amount = null;
         
         // Check if this is our simulated format (simple object with status and qr_id)
         if (callbackData.status === 'COMPLETED' && callbackData.qr_id) {
@@ -618,8 +619,12 @@ router.post('/callback', async function(req, res) {
         // Check if this is actual Xendit webhook format (with event and nested data structure)
         else if (callbackData.event === 'qr.payment' && callbackData.data) {
             qrId = callbackData.data.qr_id;
+            // Translate Xendit's 'SUCCEEDED' status to our expected 'COMPLETED'
             status = callbackData.data.status === 'SUCCEEDED' ? 'COMPLETED' : callbackData.data.status;
+            amount = callbackData.data.amount;
         }
+        
+        console.log(`Processing payment with QR ID: ${qrId}, Status: ${status}`);
         
         // Process the payment if we have a valid QR ID and successful status
         if ((status === 'COMPLETED' || status === 'SUCCEEDED') && qrId) {
@@ -628,10 +633,16 @@ router.post('/callback', async function(req, res) {
             if (billing) {
                 // Ensure we don't process the same payment twice
                 if (billing.status !== 'paid') {
-                    // Update billing status
+                    console.log(`Found billing record: ${billing._id}, Current status: ${billing.status}`);
+                    
+                    // Update billing status and save the complete callback data
                     billing.status = 'paid';
                     billing.updated_at = Date.now();
+                    billing.xendit_callback = callbackData; // Store the complete callback response
+                    billing.payment_time = new Date();
                     await billing.save();
+                    
+                    console.log(`Updated billing status to 'paid' and saved Xendit callback data`);
                     
                     // Update the user's balance by adding the payment amount
                     const updatedUser = await User.findByIdAndUpdate(
@@ -643,15 +654,27 @@ router.post('/callback', async function(req, res) {
                     if (updatedUser) {
                         console.log(`User balance updated: User ID ${updatedUser._id}, New balance: ${updatedUser.amount}`);
                         
-                        // If we have an active session for this user, update the session data
-                        // This will be used on client side to show updated balance
+                        // Store the payment success info in the global object for session access
+                        // This ensures it's available even if the user who made the request
+                        // doesn't have an active session
+                        global.paymentSuccessInfo = {
+                            userId: updatedUser._id.toString(),
+                            message: 'Payment has been successfully processed.',
+                            amount: billing.amount,
+                            redirectTo: '/raku-ai',
+                            timestamp: new Date().getTime()
+                        };
+                        
+                        // If there's an active session for this user, also store it there
                         if (req.session && req.session.user && req.session.user._id.toString() === updatedUser._id.toString()) {
+                            console.log(`Updating session for user ${req.session.user._id}`);
                             req.session.user = updatedUser;
                             req.session.paymentSuccess = {
                                 message: 'Payment has been successfully processed.',
                                 amount: billing.amount,
                                 redirectTo: '/raku-ai'
                             };
+                            console.log(`Session updated with payment success info`);
                         }
                     }
                 } else {
@@ -772,18 +795,41 @@ router.post('/cancel/:paymentId', async function(req, res) {
     }
 });
 
-// Check payment success status endpoint
+// Check payment success endpoint
 router.get('/check-success', async function(req, res) {
     try {
-        // Check if there's a payment success message in the session
+        let hasPaymentSuccess = false;
+        let paymentSuccessData = null;
+        
+        // First check the session
         if (req.session && req.session.paymentSuccess) {
-            // Get the payment success data
-            const paymentSuccessData = req.session.paymentSuccess;
+            hasPaymentSuccess = true;
+            paymentSuccessData = req.session.paymentSuccess;
             
             // Clear the payment success data from the session
             req.session.paymentSuccess = null;
+        } 
+        // If not in the session, check the global object (for webhook cases)
+        else if (global.paymentSuccessInfo && req.session && req.session.user) {
+            // Check if this is the user who made the payment and if the payment is recent (< 5 minutes old)
+            const isRecentPayment = (new Date().getTime() - global.paymentSuccessInfo.timestamp) < 5 * 60 * 1000;
+            const isMatchingUser = req.session.user._id.toString() === global.paymentSuccessInfo.userId;
             
-            // Return the payment success data
+            if (isMatchingUser && isRecentPayment) {
+                hasPaymentSuccess = true;
+                paymentSuccessData = {
+                    message: global.paymentSuccessInfo.message,
+                    amount: global.paymentSuccessInfo.amount,
+                    redirectTo: global.paymentSuccessInfo.redirectTo
+                };
+                
+                // Clear the global payment success info
+                global.paymentSuccessInfo = null;
+            }
+        }
+        
+        // Return the payment success data
+        if (hasPaymentSuccess && paymentSuccessData) {
             return res.json({
                 success: true,
                 hasPaymentSuccess: true,

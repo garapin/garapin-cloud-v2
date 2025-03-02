@@ -49,6 +49,14 @@ const billingSchema = new mongoose.Schema({
         },
         enum: ['bca', 'bni', 'bri', 'mandiri', 'permata']
     },
+    xendit_callback: {
+        type: Object, // Stores the complete Xendit callback data
+        default: null
+    },
+    payment_time: {
+        type: Date, // Records when the payment was completed
+        default: null
+    },
     created_at: {
         type: Date,
         default: Date.now
