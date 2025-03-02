@@ -54,46 +54,6 @@ function cancelCurrentPayment() {
     }
 }
 
-// Function to check for payment success
-function checkPaymentSuccess() {
-    // Check if we recently arrived from a successful payment (indicated by URL param)
-    const urlParams = new URLSearchParams(window.location.search);
-    if (urlParams.has('payment_success')) {
-        // Already processed this success, don't check again
-        // Clear the param from the URL without reloading the page
-        const newUrl = window.location.pathname + window.location.hash;
-        history.replaceState(null, '', newUrl);
-        return;
-    }
-    
-    fetch('/payments/check-success')
-        .then(response => response.json())
-        .then(data => {
-            if (data.success && data.hasPaymentSuccess) {
-                // Clear any existing interval for payment status checking
-                if (currentStatusCheckInterval) {
-                    clearInterval(currentStatusCheckInterval);
-                    currentStatusCheckInterval = null;
-                }
-                
-                // Show success notification
-                showToast('success', data.message);
-                
-                // Reset payment tracking
-                currentPaymentId = null;
-                
-                // Redirect to the specified page after a short delay
-                setTimeout(() => {
-                    // Add a parameter to indicate we just came from a successful payment
-                    window.location.href = data.redirectTo + '?payment_success=true';
-                }, 2000);
-            }
-        })
-        .catch(error => {
-            console.error('Error checking payment success:', error);
-        });
-}
-
 // Function to show toast notifications
 function showToast(type, message) {
     const toastEl = document.getElementById('paymentToast');
@@ -121,9 +81,6 @@ function showToast(type, message) {
         }
     }
 }
-
-// Start periodic check for payment success
-let paymentSuccessCheckInterval = setInterval(checkPaymentSuccess, 5000);
 
 // Function to check if iframe loading is blocked by CSP
 function checkIframeLoading(iframe, fallbackUrl) {
@@ -166,6 +123,19 @@ document.addEventListener('DOMContentLoaded', function() {
     let userName = null;
     let userPhoneNumber = null;
     let currentSaldo = 0;
+    
+    // Check if we arrived from a successful payment
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.has('payment_success')) {
+        // Show success notification
+        setTimeout(() => {
+            showToast('success', 'Payment successful! Your balance has been updated.');
+        }, 500);
+        
+        // Clear the param from the URL without reloading the page
+        const newUrl = window.location.pathname + window.location.hash;
+        history.replaceState(null, '', newUrl);
+    }
     
     // Get the amount input element
     const amountInput = document.getElementById('amount');
