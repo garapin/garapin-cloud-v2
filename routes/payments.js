@@ -110,7 +110,7 @@ router.post('/create-invoice', async function(req, res) {
                 const response = {
                     data: {
                         id: `invoice_${Date.now()}`,
-                        external_id: external_id,
+                        external_id: invoiceId,
                         status: 'PENDING',
                         amount: amount,
                         invoice_url: mockInvoiceUrl,
@@ -136,7 +136,7 @@ router.post('/create-invoice', async function(req, res) {
             const response = await axios.post(
                 xenditApiUrl,
                 {
-                    external_id,
+                    external_id: invoiceId,
                     amount,
                     description,
                     customer,
