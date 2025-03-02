@@ -248,7 +248,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (profileData && profileData.fullname) {
                     userName = profileData.fullname;
                 }
-            } else {
+        } else {
                 console.error('Failed to fetch user profile data');
             }
         } catch (error) {
@@ -381,7 +381,7 @@ document.addEventListener('DOMContentLoaded', function() {
             currentStatusCheckInterval = setInterval(() => {
                 checkPaymentStatus(currentPaymentId);
             }, 5000);
-        } else {
+            } else {
             // Clear expired payment data
             localStorage.removeItem('pendingPaymentId');
             localStorage.removeItem('paymentStartTime');
