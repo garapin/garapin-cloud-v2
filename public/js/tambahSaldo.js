@@ -3,10 +3,19 @@ let currentStatusCheckInterval = null;
 let currentPaymentId = null;
 let processingModalInstance = null;
 
+// Format amount as Rupiah
+function formatRupiah(amount) {
+    return new Intl.NumberFormat('id-ID', {
+        style: 'currency',
+        currency: 'IDR',
+        minimumFractionDigits: 0
+    }).format(amount);
+}
+
 // Function to cancel current payment (global for direct HTML access)
-function cancelCurrentPayment(modalType) {
+function cancelCurrentPayment() {
     if (currentPaymentId && currentStatusCheckInterval) {
-        console.log(`${modalType} modal closed. Cancelling payment ${currentPaymentId}`);
+        console.log(`Cancelling payment ${currentPaymentId}`);
         
         // Clear the interval first to stop checking
         clearInterval(currentStatusCheckInterval);
@@ -105,8 +114,46 @@ function showToast(type, message) {
 // Start periodic check for payment success
 let paymentSuccessCheckInterval = setInterval(checkPaymentSuccess, 5000);
 
+// Function to check if iframe loading is blocked by CSP
+function checkIframeLoading(iframe, fallbackUrl) {
+    // Set a timeout to check if the iframe loaded properly
+    setTimeout(() => {
+        try {
+            // Try to access iframe content - if CSP blocks it, this will fail
+            const iframeContent = iframe.contentWindow || iframe.contentDocument;
+            
+            // If we get here without error and the iframe has loaded content, it's working
+            if (iframe.readyState === 'complete' || iframe.contentWindow.document.readyState === 'complete') {
+                console.log('Iframe loaded successfully');
+                return;
+            }
+            
+            // If we couldn't verify the iframe loaded properly, use the fallback
+            console.log('Iframe may be blocked by CSP, falling back to redirect');
+            showToast('warning', 'Payment page could not be displayed in this window. Redirecting to payment page...');
+            
+            // Redirect to the payment page
+            setTimeout(() => {
+                window.location.href = fallbackUrl;
+            }, 1500);
+        } catch (e) {
+            // If we get an error, CSP is likely blocking the iframe
+            console.error('Error accessing iframe content, CSP may be blocking it:', e);
+            showToast('warning', 'Payment page could not be displayed in this window. Redirecting to payment page...');
+            
+            // Redirect to the payment page
+            setTimeout(() => {
+                window.location.href = fallbackUrl;
+            }, 1500);
+        }
+    }, 2000); // Check after 2 seconds to give iframe time to load
+}
+
 document.addEventListener('DOMContentLoaded', function() {
     let userId = null;
+    let userEmail = null;
+    let userName = null;
+    let userPhoneNumber = null;
     let currentSaldo = 0;
     
     // Get the amount input element
@@ -114,31 +161,20 @@ document.addEventListener('DOMContentLoaded', function() {
     const amountError = document.getElementById('amountError');
     const minAmount = 10000; // Minimum amount Rp10,000
     
-    // Get payment method elements
-    const qrisOption = document.getElementById('qrisOption');
-    const vaOption = document.getElementById('vaOption');
-    const bankSelection = document.getElementById('bankSelection');
-    
     // Payment processing elements
     const payButton = document.getElementById('payButton');
     processingModalInstance = new bootstrap.Modal(document.getElementById('processingModal'));
-    const qrisModal = new bootstrap.Modal(document.getElementById('qrisModal'));
-    const vaModal = new bootstrap.Modal(document.getElementById('vaModal'));
-    
-    // Add event listeners to detect when modals are closed
-    document.getElementById('qrisModal').addEventListener('hidden.bs.modal', function() {
-        cancelCurrentPayment('qris');
-    });
-    
-    document.getElementById('vaModal').addEventListener('hidden.bs.modal', function() {
-        cancelCurrentPayment('va');
-    });
     
     // Initialize Firebase Auth
     firebase.auth().onAuthStateChanged(function(user) {
         if (user) {
             userId = user.uid;
+            userEmail = user.email;
+            if (user.displayName) {
+                userName = user.displayName;
+            }
             fetchUserSaldo(user);
+            fetchUserProfile(user);
         } else {
             window.location.href = '/login';
         }
@@ -186,42 +222,39 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
     
-    // Format amount as Rupiah
-    function formatRupiah(amount) {
-        return new Intl.NumberFormat('id-ID', {
-            style: 'currency',
-            currency: 'IDR',
-            minimumFractionDigits: 0
-        }).format(amount);
-    }
-    
-    // Toggle bank selection visibility
-    vaOption.addEventListener('change', function() {
-        bankSelection.style.display = 'block';
-        updatePaymentOptionStyles('va');
-    });
-    
-    qrisOption.addEventListener('change', function() {
-        bankSelection.style.display = 'none';
-        updatePaymentOptionStyles('qris');
-    });
-    
-    // Function to update payment option styling
-    function updatePaymentOptionStyles(selected) {
-        const qrisContainer = qrisOption.closest('.payment-option');
-        const vaContainer = vaOption.closest('.payment-option');
-        
-        if (selected === 'qris') {
-            qrisContainer.classList.add('selected');
-            vaContainer.classList.remove('selected');
-        } else {
-            qrisContainer.classList.remove('selected');
-            vaContainer.classList.add('selected');
+    // Fetch user's profile information for phone number
+    async function fetchUserProfile(user) {
+        try {
+            // Get user token for authentication
+            const token = await user.getIdToken();
+            
+            // Fetch the user profile data from the backend
+            const response = await fetch('/profile/data', {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+            
+            if (response.ok) {
+                const profileData = await response.json();
+                console.log('Profile data retrieved:', profileData);
+                
+                // Store the phone number
+                if (profileData && profileData.phone_number) {
+                    userPhoneNumber = profileData.phone_number;
+                }
+                
+                // Use the name from profile if available
+                if (profileData && profileData.fullname) {
+                    userName = profileData.fullname;
+                }
+            } else {
+                console.error('Failed to fetch user profile data');
+            }
+        } catch (error) {
+            console.error('Error fetching user profile:', error);
         }
     }
-    
-    // Initialize payment option styling
-    updatePaymentOptionStyles('qris');
     
     // Validate amount input
     amountInput.addEventListener('input', function() {
@@ -255,7 +288,7 @@ document.addEventListener('DOMContentLoaded', function() {
         e.target.value = value;
     });
     
-    // Process payment
+    // Process payment with Xendit Invoice
     payButton.addEventListener('click', function(e) {
         e.preventDefault();
         
@@ -264,314 +297,142 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         const amount = parseInt(amountInput.value.replace(/\D/g, ''));
-        const paymentMethod = document.querySelector('input[name="paymentMethod"]:checked').value;
-        const selectedBank = paymentMethod === 'va' ? document.getElementById('bank').value : null;
         
-        // Prepare the request data
-        const requestBody = {
-            userId: userId,
-            amount: amount,
-            paymentMethod: paymentMethod,
-            bank: selectedBank
+        // Generate a unique external ID for the invoice
+        const externalId = `saldo-${userId}-${Date.now()}`;
+        
+        // Create customer data object
+        const customerData = {
+            given_names: userName || "User",
+            email: userEmail || "user@example.com",
+            mobile_number: userPhoneNumber || "+6281234567890"
         };
         
-        // Show processing while creating the payment
+        // Create Xendit Invoice request data
+        const invoiceData = {
+            external_id: externalId,
+            amount: amount,
+            description: `Topup saldo user: ${userName || userEmail || userId}`,
+            customer: customerData,
+            invoice_duration: 1800, // 30 minutes in seconds
+            success_redirect_url: `${window.location.origin}/raku-ai`,
+            currency: "IDR"
+        };
+        
+        // Show processing modal
         processingModalInstance.show();
         
-        // First create the billing record
-        fetch('/payments/pre-create', {
+        // Make the actual Xendit API call through our server
+        fetch('/payments/create-invoice', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify(requestBody)
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                // Now make the actual API call immediately
-                return fetch('/payments/create', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(data.paymentData)
-                });
-            } else {
-                throw new Error(data.message || 'Failed to prepare payment');
-            }
+            body: JSON.stringify(invoiceData)
         })
         .then(response => response.json())
         .then(data => {
             processingModalInstance.hide();
             
             if (data.success) {
-                if (requestBody.paymentMethod === 'qris') {
-                    // Display QRIS payment details with the QR code from Xendit
-                    
-                    // Convert QR string to a displayable QR code using QRious library
-                    if (!window.QRious) {
-                        const script = document.createElement('script');
-                        script.src = 'https://cdn.jsdelivr.net/npm/qrious@4.0.2/dist/qrious.min.js';
-                        script.onload = function() {
-                            generateQRCode(data.qrCode);
-                        };
-                        document.head.appendChild(script);
-                    } else {
-                        generateQRCode(data.qrCode);
-                    }
-                    
-                    // Set payment details - Add null checks to prevent errors
-                    const qrisAmountElement = document.getElementById('qrisAmount');
-                    if (qrisAmountElement) {
-                        qrisAmountElement.textContent = formatRupiah(requestBody.amount);
-                    }
-                    
-                    const qrisPaymentIdElement = document.getElementById('qrisPaymentId');
-                    if (qrisPaymentIdElement) {
-                        // Use the dedicated referenceId field if available, otherwise fallback to the one in xenditResponse
-                        qrisPaymentIdElement.textContent = data.referenceId || data.xenditResponse.reference_id || data.paymentId;
-                    }
-                    
-                    // Show the QRIS modal
-                    qrisModal.show();
-                    
-                    // Start checking payment status
-                    checkPaymentStatus(data.paymentId);
-                } else if (requestBody.paymentMethod === 'va') {
-                    // Display VA payment details
-                    document.getElementById('vaBank').textContent = requestBody.bank.toUpperCase();
-                    document.getElementById('vaNumber').textContent = data.accountNumber;
-                    document.getElementById('vaNumberInstructions').textContent = data.accountNumber;
-                    document.getElementById('vaAmount').textContent = formatRupiah(requestBody.amount);
-                    document.getElementById('vaPaymentId').textContent = data.paymentId;
-                    
-                    // Show the VA modal
-                    vaModal.show();
-                    
-                    // Set up copy button
-                    document.getElementById('copyVaButton').addEventListener('click', function() {
-                        copyToClipboard(data.accountNumber);
-                        this.textContent = 'Tersalin!';
-                        setTimeout(() => {
-                            this.textContent = 'Salin';
-                        }, 2000);
-                    });
-                    
-                    // Start checking payment status
-                    checkPaymentStatus(data.paymentId);
+                const paymentUrl = data.invoice_url || data.mock_invoice_url;
+                
+                // Set up payment ID in localStorage for when user returns
+                localStorage.setItem('pendingPaymentId', data.id);
+                localStorage.setItem('paymentStartTime', Date.now());
+                
+                // Set up periodic checking for payment status
+                if (data.id) {
+                    currentPaymentId = data.id;
+                    // No need to set interval here as we're redirecting
                 }
+                
+                // Directly redirect to payment page
+                window.location.href = paymentUrl;
             } else {
-                alert('Error: ' + data.message);
+                showToast('error', data.message || 'Failed to create payment invoice');
             }
         })
         .catch(error => {
             processingModalInstance.hide();
-            console.error('Error creating payment:', error);
-            alert('An error occurred while processing the payment. Please try again.');
+            console.error('Error creating payment invoice:', error);
+            showToast('error', 'An error occurred while processing the payment request');
         });
     });
     
-    // Generate QR code from the QR string
-    function generateQRCode(qrString) {
-        if (!qrString) {
-            console.error('QR string is empty or undefined');
-            showQRError('QR code data is missing');
-            return;
-        }
+    // Check for pending payment from localStorage
+    const pendingPaymentId = localStorage.getItem('pendingPaymentId');
+    const paymentStartTime = localStorage.getItem('paymentStartTime');
+    
+    if (pendingPaymentId) {
+        // Only check if the payment started less than 30 minutes ago
+        const thirtyMinutesInMs = 30 * 60 * 1000;
+        const now = Date.now();
+        const elapsed = now - (paymentStartTime || 0);
         
-        try {
-            console.log('Generating QR code from string');
+        if (elapsed < thirtyMinutesInMs) {
+            // Set up payment status checking
+            currentPaymentId = pendingPaymentId;
             
-            // Clear previous content
-            const qrElement = document.getElementById('qrisImage');
-            if (qrElement) {
-                // Create a new canvas element
-                const context = qrElement.getContext('2d');
-                context.clearRect(0, 0, qrElement.width, qrElement.height);
-                
-                // Generate new QR code with QRious
-                new QRious({
-                    element: qrElement,
-                    value: qrString,
-                    size: 300,
-                    level: 'H' // High error correction
-                });
-            } else {
-                console.error('QR canvas element not found');
-            }
-        } catch (error) {
-            console.error('Error generating QR code:', error);
-            showQRError('Failed to generate QR code');
+            // Check payment status immediately
+            checkPaymentStatus(currentPaymentId);
+            
+            // Set up interval for continuous checking
+            currentStatusCheckInterval = setInterval(() => {
+                checkPaymentStatus(currentPaymentId);
+            }, 5000);
+        } else {
+            // Clear expired payment data
+            localStorage.removeItem('pendingPaymentId');
+            localStorage.removeItem('paymentStartTime');
         }
     }
+});
+
+// Update the checkPaymentStatus function to update the modal
+function checkPaymentStatus(paymentId) {
+    if (!paymentId) return;
     
-    // Simulate Xendit callback
-    function simulateXenditCallback(paymentId) {
-        if (!paymentId) {
-            console.error('No payment ID available for simulation');
-            alert('No payment ID available for simulation');
-            return;
-        }
-        
-        console.log('Simulating Xendit callback for payment ID:', paymentId);
-        
-        // Show a loading message on the button
-        const simulateBtn = document.getElementById('simulatePaymentBtn');
-        if (simulateBtn) {
-            simulateBtn.disabled = true;
-            simulateBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Processing...';
-        }
-        
-        // Prepare callback data
-        const callbackData = {
-            status: 'COMPLETED',
-            qr_id: paymentId
-        };
-        
-        // Send the callback data to the server
-        fetch('/payments/callback', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(callbackData)
-        })
+    fetch(`/payments/status/${paymentId}`)
         .then(response => response.json())
         .then(data => {
-            console.log('Simulated callback response:', data);
+            console.log('Payment status:', data);
             
-            if (data.success) {
-                // Show success message
-                alert('Payment simulation successful! The callback has been processed.');
-                
-                // Reset the button
-                if (simulateBtn) {
-                    simulateBtn.disabled = false;
-                    simulateBtn.innerHTML = 'Simulate Payment';
-                }
-                
-                // Clear interval and reset current payment ID
+            // Add payment status to localStorage for tracking
+            localStorage.setItem('lastPaymentCheck', Date.now());
+            localStorage.setItem('lastPaymentStatus', data.status);
+            
+            if (data.success && data.status === 'PAID') {
+                // Clear the interval to stop checking
                 if (currentStatusCheckInterval) {
                     clearInterval(currentStatusCheckInterval);
                     currentStatusCheckInterval = null;
                 }
                 
-                // Close the QRIS modal
-                const qrisModal = bootstrap.Modal.getInstance(document.getElementById('qrisModal'));
-                if (qrisModal) {
-                    qrisModal.hide();
-                }
+                // Clear localStorage payment data
+                localStorage.removeItem('pendingPaymentId');
+                localStorage.removeItem('paymentStartTime');
+                localStorage.removeItem('lastPaymentCheck');
+                localStorage.removeItem('lastPaymentStatus');
                 
-                // Reset current payment ID
+                // Show success notification
+                showToast('success', 'Payment successful! Your balance has been updated.');
+                
+                // Reset payment tracking
                 currentPaymentId = null;
                 
-                // Reload the page after a short delay
+                // Reload the page after a short delay to show updated balance
                 setTimeout(() => {
                     window.location.reload();
-                }, 1500);
+                }, 3000);
+            } else if (data.success && data.status === 'PENDING') {
+                // Continue checking - payment is still pending
+                console.log('Payment is still pending, continuing to check...');
             } else {
-                alert('Payment simulation failed. Please check the console for more information.');
-                
-                // Reset the button
-                if (simulateBtn) {
-                    simulateBtn.disabled = false;
-                    simulateBtn.innerHTML = 'Simulate Payment';
-                }
+                console.log('Unexpected payment status:', data.status);
             }
         })
         .catch(error => {
-            console.error('Error simulating payment callback:', error);
-            alert('Error simulating payment callback. Please check the console for more information.');
-            
-            // Reset the button
-            if (simulateBtn) {
-                simulateBtn.disabled = false;
-                simulateBtn.innerHTML = 'Simulate Payment';
-            }
+            console.error('Error checking payment status:', error);
         });
-    }
-    
-    // Function to show QR error
-    function showQRError(message) {
-        const qrElement = document.getElementById('qrisImage');
-        if (qrElement) {
-            // Display error message instead of QR code
-            const parent = qrElement.parentElement;
-            const errorDiv = document.createElement('div');
-            errorDiv.className = 'alert alert-danger';
-            errorDiv.textContent = message;
-            parent.insertBefore(errorDiv, qrElement.nextSibling);
-        }
-    }
-    
-    // Poll for payment status
-    function checkPaymentStatus(paymentId) {
-        const checkInterval = 5000; // Check every 5 seconds
-        let checkCount = 0;
-        const maxChecks = 72; // Check for up to 6 minutes
-        
-        // Store the payment ID and method globally
-        currentPaymentId = paymentId;
-        const paymentMethod = document.querySelector('input[name="paymentMethod"]:checked').value;
-        
-        // Clear any existing interval
-        if (currentStatusCheckInterval) {
-            clearInterval(currentStatusCheckInterval);
-        }
-        
-        // Create a new interval
-        currentStatusCheckInterval = setInterval(function() {
-            if (checkCount >= maxChecks) {
-                clearInterval(currentStatusCheckInterval);
-                currentStatusCheckInterval = null;
-                // Handle timeout - payment not completed
-                alert('Waktu pembayaran habis. Silakan coba lagi atau hubungi admin jika Anda sudah melakukan pembayaran.');
-                return;
-            }
-            
-            checkCount++;
-            
-            // Check payment status
-            fetch(`/payments/status/${paymentId}`)
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        if (data.status === 'PAID') {
-                            clearInterval(currentStatusCheckInterval);
-                            currentStatusCheckInterval = null;
-                            currentPaymentId = null;
-                            
-                            // Close the appropriate modal based on payment method
-                            if (paymentMethod === 'qris') {
-                                qrisModal.hide();
-                            } else if (paymentMethod === 'va') {
-                                vaModal.hide();
-                            }
-                            
-                            // Show success message and redirect
-                            alert('Pembayaran berhasil! Saldo Anda telah ditambahkan.');
-                            window.location.reload();
-                        }
-                        // If not paid, continue checking...
-                    } else {
-                        console.error('Error checking payment status:', data.message);
-                    }
-                })
-                .catch(error => {
-                    console.error('Error checking payment status:', error);
-                });
-        }, checkInterval);
-    }
-    
-    // Copy VA number to clipboard
-    function copyToClipboard(text) {
-        const tempInput = document.createElement('input');
-        tempInput.value = text;
-        document.body.appendChild(tempInput);
-        tempInput.select();
-        document.execCommand('copy');
-        document.body.removeChild(tempInput);
-        alert('Nomor VA berhasil disalin');
-    }
-}); 
+} 

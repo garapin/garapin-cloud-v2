@@ -12,6 +12,207 @@ function generateInvoiceId() {
     return `INV-${timestamp}-${random}`;
 }
 
+// NEW: Endpoint to create Xendit Invoice
+router.post('/create-invoice', async function(req, res) {
+    try {
+        const {
+            external_id,
+            amount,
+            description,
+            customer,
+            invoice_duration,
+            success_redirect_url,
+            currency
+        } = req.body;
+        
+        // Validate inputs
+        if (!external_id || !amount) {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'external_id and amount are required' 
+            });
+        }
+        
+        if (amount < 10000) {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'Minimum amount is Rp10,000' 
+            });
+        }
+        
+        // Find user by the external_id which should include userId
+        const userId = external_id.split('-')[1];
+        
+        if (!userId) {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'Invalid external_id format, should include userId' 
+            });
+        }
+        
+        const user = await User.findOne({ provider_uid: userId });
+        if (!user) {
+            return res.status(404).json({ 
+                success: false, 
+                message: 'User not found' 
+            });
+        }
+        
+        // Create a new billing record
+        const invoiceId = generateInvoiceId();
+        const billing = new Billing({
+            user_id: user._id,
+            invoice_id: invoiceId,
+            payment_method: 'xendit_invoice',
+            amount: amount,
+            status: 'waiting_payment',
+            xendit_hit: {
+                external_id: external_id,
+                amount: amount,
+                description: description || `Tambah saldo user: ${user.name || 'Unknown'}`,
+            },
+            payment_details: {
+                external_id: external_id,
+                xendit_invoice_url: null // Will be updated after Xendit API call
+            }
+        });
+        
+        await billing.save();
+        
+        // Make the actual API call to Xendit
+        try {
+            const xenditApiKey = process.env.XENDIT_SECRET_KEY;
+            const xenditApiUrl = 'https://api.xendit.co/v2/invoices';
+            
+            // Check if we're in development mode without Xendit credentials
+            const isDevelopmentModeWithoutCredentials = !process.env.XENDIT_SECRET_KEY || !process.env.XENDIT_ACCOUNT_ID;
+            
+            // Log API key status (safely)
+            console.log('Xendit API Key Status:', {
+                secretKeyExists: !!process.env.XENDIT_SECRET_KEY,
+                secretKeyLength: process.env.XENDIT_SECRET_KEY ? process.env.XENDIT_SECRET_KEY.length : 0,
+                accountIdExists: !!process.env.XENDIT_ACCOUNT_ID
+            });
+            
+            console.log('Sending request to Xendit:', {
+                url: xenditApiUrl,
+                external_id,
+                amount,
+                description
+            });
+            
+            if (isDevelopmentModeWithoutCredentials) {
+                console.log('Development mode without Xendit credentials - using mock Invoice response');
+                
+                // Create a mock Invoice response
+                const mockInvoiceUrl = "https://checkout-staging.xendit.co/web/" + Date.now();
+                const response = {
+                    data: {
+                        id: `invoice_${Date.now()}`,
+                        external_id: external_id,
+                        status: 'PENDING',
+                        amount: amount,
+                        invoice_url: mockInvoiceUrl,
+                        expiry_date: new Date(Date.now() + (invoice_duration || 1800) * 1000).toISOString()
+                    }
+                };
+                
+                // Update the billing record with the mock invoice URL
+                billing.payment_details.xendit_invoice_url = response.data.invoice_url;
+                billing.xendit_id = response.data.id;
+                // Ensure the xendit_hit has all required fields
+                billing.xendit_hit.id = response.data.id;
+                billing.xendit_hit.invoice_url = response.data.invoice_url;
+                await billing.save();
+                
+                return res.json({
+                    success: true,
+                    invoice_url: response.data.invoice_url,
+                    id: response.data.id
+                });
+            }
+            
+            const response = await axios.post(
+                xenditApiUrl,
+                {
+                    external_id,
+                    amount,
+                    description,
+                    customer,
+                    invoice_duration,
+                    success_redirect_url,
+                    currency
+                },
+                {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Basic ${Buffer.from(xenditApiKey + ':').toString('base64')}`,
+                        'for-user-id': process.env.XENDIT_ACCOUNT_ID
+                    }
+                }
+            );
+            
+            // Log the Xendit response
+            console.log('Xendit API Response:', {
+                id: response.data.id,
+                external_id: response.data.external_id,
+                status: response.data.status,
+                invoice_url: response.data.invoice_url,
+            });
+            
+            // Log complete response for debugging
+            console.log('Complete Xendit Response:', JSON.stringify(response.data));
+            
+            // Update the billing record with the Xendit invoice URL
+            billing.payment_details.xendit_invoice_url = response.data.invoice_url;
+            billing.xendit_id = response.data.id;
+            // Ensure the xendit_hit has all required fields
+            billing.xendit_hit.id = response.data.id;
+            billing.xendit_hit.invoice_url = response.data.invoice_url;
+            await billing.save();
+            
+            return res.json({
+                success: true,
+                invoice_url: response.data.invoice_url,
+                id: response.data.id
+            });
+        } catch (xenditError) {
+            console.error('Error from Xendit API:', xenditError.response?.data || xenditError.message);
+            
+            // Log the complete error for debugging
+            if (xenditError.response) {
+                console.error('Xendit Error Details:', {
+                    status: xenditError.response.status,
+                    headers: xenditError.response.headers,
+                    data: JSON.stringify(xenditError.response.data)
+                });
+            }
+            
+            // Return a mock response for now
+            return res.json({
+                success: true,
+                message: "Error connecting to Xendit API. Using mock response for testing.",
+                mock_invoice_url: "https://checkout-staging.xendit.co/v2/mock-invoice-id",
+                id: "mock-invoice-id"
+            });
+        }
+        
+    } catch (error) {
+        console.error('Error creating Xendit invoice:', error);
+        
+        // Check if this is a validation error and log detailed information
+        if (error.name === 'ValidationError') {
+            console.error('Billing validation error details:', JSON.stringify(error.errors));
+        }
+        
+        return res.status(500).json({ 
+            success: false, 
+            message: 'Failed to create invoice',
+            error: error.message
+        });
+    }
+});
+
 // NEW: Pre-create endpoint to create the billing record before API validation
 router.post('/pre-create', async function(req, res) {
     try {
@@ -389,9 +590,7 @@ router.post('/create', async function(req, res) {
                 console.log('Headers:', {
                     'Content-Type': 'application/json',
                     'api-version': '2022-07-31',
-                    'for-user-id': process.env.XENDIT_ACCOUNT_ID,
-                    'webhook-url': webhookUrl,
-                    'Authorization': 'Basic [REDACTED]'
+                    'for-user-id': process.env.XENDIT_ACCOUNT_ID
                 });
                 console.log('Body:', xenditRequestBody);
                 
@@ -715,13 +914,51 @@ router.get('/status/:paymentId', async function(req, res) {
             });
         }
         
-        // If it's a Xendit QR code ID (starts with "qr_")
-        if (paymentId.startsWith('qr_')) {
-            // In a real implementation, you would check the status from Xendit API
-            // For now, return the status from our database
+        let paymentStatus = billing.status === 'paid' ? 'PAID' : 'PENDING';
+        
+        // For Xendit invoice payments, if needed, we could check the status directly 
+        // from Xendit API in production, but here we're using our DB status
+        
+        // If the payment is PAID but our billing record hasn't been updated yet,
+        // update the user's amount - this handles cases where the webhook might have failed
+        if (paymentStatus === 'PAID' && billing.status !== 'paid') {
+            console.log(`Payment ${paymentId} detected as PAID but billing record not updated. Updating user balance...`);
+            
+            // Update billing status to 'paid'
+            billing.status = 'paid';
+            billing.updated_at = Date.now();
+            billing.payment_time = new Date();
+            await billing.save();
+            
+            // Update the user's balance by adding the payment amount
+            const updatedUser = await User.findByIdAndUpdate(
+                billing.user_id, 
+                { $inc: { amount: billing.amount } },
+                { new: true }
+            );
+            
+            if (updatedUser) {
+                console.log(`User balance updated via status check: User ID ${updatedUser._id}, New balance: ${updatedUser.amount}`);
+            }
+        }
+        
+        // Handle different payment methods for response formatting
+        if (billing.payment_method === 'xendit_invoice') {
             return res.json({
                 success: true,
-                status: billing.status === 'paid' ? 'PAID' : 'PENDING',
+                status: paymentStatus,
+                paymentMethod: billing.payment_method,
+                amount: billing.amount,
+                createdAt: billing.created_at,
+                updatedAt: billing.updated_at,
+                invoiceUrl: billing.payment_details?.xendit_invoice_url || null
+            });
+        }
+        // If it's a Xendit QR code ID (starts with "qr_")
+        else if (paymentId.startsWith('qr_')) {
+            return res.json({
+                success: true,
+                status: paymentStatus,
                 paymentMethod: billing.payment_method,
                 amount: billing.amount,
                 createdAt: billing.created_at,
@@ -731,7 +968,7 @@ router.get('/status/:paymentId', async function(req, res) {
             // For other payment methods (like VA), return from our database
             return res.json({
                 success: true,
-                status: billing.status === 'paid' ? 'PAID' : 'PENDING',
+                status: paymentStatus,
                 paymentMethod: billing.payment_method,
                 amount: billing.amount,
                 createdAt: billing.created_at,

@@ -39,7 +39,7 @@ const billingSchema = new mongoose.Schema({
     },
     payment_method: {
         type: String,
-        enum: ['qris', 'va'],
+        enum: ['qris', 'va', 'xendit_invoice'],
         required: true
     },
     bank: {
@@ -56,6 +56,10 @@ const billingSchema = new mongoose.Schema({
     payment_time: {
         type: Date, // Records when the payment was completed
         default: null
+    },
+    payment_details: {
+        type: Object, // Additional details specific to payment method
+        default: {}
     },
     created_at: {
         type: Date,

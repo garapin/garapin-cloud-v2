@@ -54,7 +54,8 @@ app.use((req, res, next) => {
         "wss://*.firebaseio.com https://cdn.jsdelivr.net https://n8n-service.garapin.cloud " +
         "https://registry.hub.docker.com https://cdn.tiny.cloud; " +
         "frame-src 'self' https://console.garapin.cloud https://*.firebaseio.com " +
-        "https://*.firebaseapp.com https://*.firebase.com https://accounts.google.com; " +
+        "https://*.firebaseapp.com https://*.firebase.com https://accounts.google.com " +
+        "https://*.xendit.co https://checkout.xendit.co https://checkout-staging.xendit.co; " +
         "object-src 'none';"
     );
 
