@@ -54,34 +54,6 @@ function cancelCurrentPayment() {
     }
 }
 
-// Function to show toast notifications
-function showToast(type, message) {
-    const toastEl = document.getElementById('paymentToast');
-    if (toastEl) {
-        const toastBody = toastEl.querySelector('.toast-body');
-        if (toastBody) {
-            // Set the message
-            toastBody.textContent = message;
-            
-            // Set the toast color based on type
-            toastEl.className = 'toast';
-            if (type === 'success') {
-                toastEl.classList.add('bg-success', 'text-white');
-            } else if (type === 'error') {
-                toastEl.classList.add('bg-danger', 'text-white');
-            } else if (type === 'warning') {
-                toastEl.classList.add('bg-warning');
-            } else {
-                toastEl.classList.add('bg-info', 'text-white');
-            }
-            
-            // Show the toast
-            const toast = new bootstrap.Toast(toastEl);
-            toast.show();
-        }
-    }
-}
-
 // Function to check if iframe loading is blocked by CSP
 function checkIframeLoading(iframe, fallbackUrl) {
     // Set a timeout to check if the iframe loaded properly
@@ -98,7 +70,6 @@ function checkIframeLoading(iframe, fallbackUrl) {
             
             // If we couldn't verify the iframe loaded properly, use the fallback
             console.log('Iframe may be blocked by CSP, falling back to redirect');
-            showToast('warning', 'Payment page could not be displayed in this window. Redirecting to payment page...');
             
             // Redirect to the payment page
             setTimeout(() => {
@@ -107,7 +78,6 @@ function checkIframeLoading(iframe, fallbackUrl) {
         } catch (e) {
             // If we get an error, CSP is likely blocking the iframe
             console.error('Error accessing iframe content, CSP may be blocking it:', e);
-            showToast('warning', 'Payment page could not be displayed in this window. Redirecting to payment page...');
             
             // Redirect to the payment page
             setTimeout(() => {
@@ -127,12 +97,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Check if we arrived from a successful payment
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.has('payment_success')) {
-        // Show success notification
-        setTimeout(() => {
-            showToast('success', 'Payment successful! Your balance has been updated.');
-        }, 500);
-        
-        // Clear the param from the URL without reloading the page
+        // Just clear the param from the URL without reloading the page
         const newUrl = window.location.pathname + window.location.hash;
         history.replaceState(null, '', newUrl);
     }
@@ -331,13 +296,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Directly redirect to payment page
                 window.location.href = paymentUrl;
             } else {
-                showToast('error', data.message || 'Failed to create payment invoice');
+                console.error('Failed to create payment invoice:', data.message || 'Unknown error');
             }
         })
         .catch(error => {
             processingModalInstance.hide();
             console.error('Error creating payment invoice:', error);
-            showToast('error', 'An error occurred while processing the payment request');
         });
     });
     
@@ -398,8 +362,7 @@ function checkPaymentStatus(paymentId, isInitialCheck = false) {
                 localStorage.removeItem('lastPaymentCheck');
                 localStorage.removeItem('lastPaymentStatus');
                 
-                // Show success notification
-                showToast('success', 'Payment successful! Your balance has been updated.');
+                console.log('Payment successful! Your balance has been updated.');
                 
                 // Reset payment tracking
                 currentPaymentId = null;
@@ -429,9 +392,9 @@ function checkPaymentStatus(paymentId, isInitialCheck = false) {
                     currentStatusCheckInterval = null;
                 }
                 
-                // Only show expired notification if this is not the initial check
+                // Only log expired notification if this is not the initial check
                 if (!isInitialCheck) {
-                    showToast('warning', `Payment ${data.status.toLowerCase()}. Please try again.`);
+                    console.log(`Payment ${data.status.toLowerCase()}. Please try again.`);
                 }
             } else {
                 console.log('Unexpected payment status:', data.status);
