@@ -18,6 +18,7 @@ const upload = multer({
 const User = require('./models/User');
 const Application = require('./models/Application');
 const Profile = require('./models/Profile');
+const Billing = require('./models/Billing');
 const categoryController = require('./controllers/categoryController');
 const Category = require('./models/Category');
 const InstalledApp = require('./models/InstalledApp');
