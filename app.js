@@ -276,6 +276,7 @@ app.post('/api/payment/callback', async (req, res) => {
         let paymentId = null;
         let status = null;
         let amount = null;
+        let externalId = null;
         
         // Check if this is our simulated format (simple object with status and qr_id)
         if (callbackData.status === 'COMPLETED' && callbackData.qr_id) {
@@ -294,37 +295,49 @@ app.post('/api/payment/callback', async (req, res) => {
             paymentId = callbackData.id; // For invoice payments, use the invoice ID
             status = callbackData.status;
             amount = callbackData.paid_amount || callbackData.amount;
+            externalId = callbackData.external_id; // Extract external_id for invoice payments
         }
         
-        console.log(`API callback: Processing payment with ID: ${paymentId}, Status: ${status}`);
+        console.log(`API callback: Processing payment with ID: ${paymentId}, Status: ${status}, External ID: ${externalId}`);
         
         // Process the payment if we have a valid ID and successful status
-        if ((status === 'COMPLETED' || status === 'SUCCEEDED' || status === 'PAID') && paymentId) {
-            // Try to find by xendit_id first
-            let billing = await Billing.findOne({ xendit_id: paymentId });
+        if ((status === 'COMPLETED' || status === 'SUCCEEDED' || status === 'PAID') && (paymentId || externalId)) {
+            let billing = null;
             
-            // If not found by xendit_id, try searching in xendit_hit.id
-            if (!billing) {
+            // Try to find by xendit_id first
+            if (paymentId) {
+                billing = await Billing.findOne({ xendit_id: paymentId });
+            }
+            
+            // If not found and we have an external_id, try to find by external_id
+            if (!billing && externalId) {
+                billing = await Billing.findOne({ external_id: externalId });
+                console.log(`Searching for billing with external_id: ${externalId}`);
+            }
+            
+            // If still not found, try searching in xendit_hit.id
+            if (!billing && paymentId) {
                 billing = await Billing.findOne({ 'xendit_hit.id': paymentId });
+            }
+            
+            // If still not found, log the issue
+            if (!billing) {
+                console.log(`Billing record not found for payment ${paymentId || ''} / external_id ${externalId || ''}. Checking all payment records...`);
                 
-                // If still not found, log the issue
-                if (!billing) {
-                    console.log(`Billing record for payment ${paymentId} not found. Checking all payment records...`);
-                    
-                    // Log recent billing records for debugging
-                    const recentBillings = await Billing.find().sort({ created_at: -1 }).limit(5);
-                    console.log('Recent billing records:', recentBillings.map(b => ({ 
-                        id: b._id, 
-                        xendit_id: b.xendit_id, 
-                        xendit_hit_id: b.xendit_hit?.id,
-                        status: b.status
-                    })));
-                    
-                    return res.status(200).json({ 
-                        success: false, 
-                        message: 'Billing record not found' 
-                    });
-                }
+                // Log recent billing records for debugging
+                const recentBillings = await Billing.find().sort({ created_at: -1 }).limit(5);
+                console.log('Recent billing records:', recentBillings.map(b => ({ 
+                    id: b._id, 
+                    xendit_id: b.xendit_id, 
+                    xendit_hit_id: b.xendit_hit?.id,
+                    external_id: b.external_id,
+                    status: b.status
+                })));
+                
+                return res.status(200).json({ 
+                    success: false, 
+                    message: 'Billing record not found' 
+                });
             }
             
             // Ensure we don't process the same payment twice
@@ -376,10 +389,10 @@ app.post('/api/payment/callback', async (req, res) => {
                     console.error(`Failed to update user balance for billing: ${billing._id}`);
                 }
             } else {
-                console.log(`Payment ${paymentId} already processed. Skipping.`);
+                console.log(`Payment ${paymentId || externalId} already processed. Skipping.`);
             }
         } else {
-            console.log(`Invalid or incomplete callback data. Status: ${status}, Payment ID: ${paymentId}`);
+            console.log(`Invalid or incomplete callback data. Status: ${status}, Payment ID: ${paymentId}, External ID: ${externalId}`);
         }
         
         // Acknowledge the webhook - always return 200 for webhooks
