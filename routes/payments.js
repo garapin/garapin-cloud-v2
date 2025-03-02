@@ -63,6 +63,7 @@ router.post('/create-invoice', async function(req, res) {
         const billing = new Billing({
             user_id: user._id,
             invoice_id: invoiceId,
+            external_id: external_id,
             payment_method: 'xendit_invoice',
             amount: amount,
             status: 'waiting_payment',

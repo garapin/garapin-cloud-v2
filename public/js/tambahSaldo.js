@@ -375,22 +375,24 @@ document.addEventListener('DOMContentLoaded', function() {
             currentPaymentId = pendingPaymentId;
             
             // Check payment status immediately
-            checkPaymentStatus(currentPaymentId);
+            checkPaymentStatus(currentPaymentId, true);
             
             // Set up interval for continuous checking
             currentStatusCheckInterval = setInterval(() => {
                 checkPaymentStatus(currentPaymentId);
             }, 5000);
-            } else {
+        } else {
             // Clear expired payment data
             localStorage.removeItem('pendingPaymentId');
             localStorage.removeItem('paymentStartTime');
+            localStorage.removeItem('lastPaymentCheck');
+            localStorage.removeItem('lastPaymentStatus');
         }
     }
 });
 
 // Update the checkPaymentStatus function to update the modal
-function checkPaymentStatus(paymentId) {
+function checkPaymentStatus(paymentId, isInitialCheck = false) {
     if (!paymentId) return;
     
     fetch(`/payments/status/${paymentId}`)
@@ -421,13 +423,35 @@ function checkPaymentStatus(paymentId) {
                 // Reset payment tracking
                 currentPaymentId = null;
                 
-                // Reload the page after a short delay to show updated balance
-                setTimeout(() => {
-                    window.location.reload();
-                }, 3000);
+                // Only reload if this is not the initial check when the page loads
+                // This prevents immediate reload when the user returns to make a new payment
+                if (!isInitialCheck) {
+                    // Reload the page after a short delay to show updated balance
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 3000);
+                }
             } else if (data.success && data.status === 'PENDING') {
                 // Continue checking - payment is still pending
                 console.log('Payment is still pending, continuing to check...');
+            } else if (data.status === 'EXPIRED' || data.status === 'FAILED' || data.status === 'CANCELLED') {
+                // Clear localStorage for expired/failed payments
+                localStorage.removeItem('pendingPaymentId');
+                localStorage.removeItem('paymentStartTime');
+                localStorage.removeItem('lastPaymentCheck');
+                localStorage.removeItem('lastPaymentStatus');
+                console.log('Payment is no longer active:', data.status);
+                
+                // Clear the interval to stop checking
+                if (currentStatusCheckInterval) {
+                    clearInterval(currentStatusCheckInterval);
+                    currentStatusCheckInterval = null;
+                }
+                
+                // Only show expired notification if this is not the initial check
+                if (!isInitialCheck) {
+                    showToast('warning', `Payment ${data.status.toLowerCase()}. Please try again.`);
+                }
             } else {
                 console.log('Unexpected payment status:', data.status);
             }
