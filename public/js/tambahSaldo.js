@@ -56,6 +56,16 @@ function cancelCurrentPayment() {
 
 // Function to check for payment success
 function checkPaymentSuccess() {
+    // Check if we recently arrived from a successful payment (indicated by URL param)
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.has('payment_success')) {
+        // Already processed this success, don't check again
+        // Clear the param from the URL without reloading the page
+        const newUrl = window.location.pathname + window.location.hash;
+        history.replaceState(null, '', newUrl);
+        return;
+    }
+    
     fetch('/payments/check-success')
         .then(response => response.json())
         .then(data => {
@@ -74,7 +84,8 @@ function checkPaymentSuccess() {
                 
                 // Redirect to the specified page after a short delay
                 setTimeout(() => {
-                    window.location.href = data.redirectTo;
+                    // Add a parameter to indicate we just came from a successful payment
+                    window.location.href = data.redirectTo + '?payment_success=true';
                 }, 2000);
             }
         })
@@ -374,12 +385,12 @@ document.addEventListener('DOMContentLoaded', function() {
             // Set up payment status checking
             currentPaymentId = pendingPaymentId;
             
-            // Check payment status immediately
+            // Check payment status immediately with isInitialCheck=true
             checkPaymentStatus(currentPaymentId, true);
             
             // Set up interval for continuous checking
             currentStatusCheckInterval = setInterval(() => {
-                checkPaymentStatus(currentPaymentId);
+                checkPaymentStatus(currentPaymentId, false);
             }, 5000);
         } else {
             // Clear expired payment data
