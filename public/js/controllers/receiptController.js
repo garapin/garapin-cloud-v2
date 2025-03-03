@@ -1,5 +1,4 @@
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('ReceiptController initializing...');
     let datePickerInitialized = false;
 
     // Initialize Firebase
@@ -7,9 +6,6 @@ document.addEventListener('DOMContentLoaded', function() {
         const firebaseConfig = JSON.parse(document.querySelector('[data-firebase-config]').dataset.firebaseConfig);
         if (!firebase.apps?.length) {
             firebase.initializeApp(firebaseConfig);
-            console.log('Firebase initialized successfully');
-        } else {
-            console.log('Firebase already initialized');
         }
     } catch (error) {
         console.error('Firebase initialization error:', error);
@@ -30,14 +26,10 @@ document.addEventListener('DOMContentLoaded', function() {
         try {
             const user = firebase.auth().currentUser;
             if (!user) {
-                console.log('No user logged in when trying to load application data');
                 return;
             }
 
-            console.log('Current user for app data:', user.uid);
-
             const token = await user.getIdToken();
-            console.log('Making API request for application info...');
 
             // Get application info
             const appInfoResponse = await fetch('/api/receipt/application-info', {
@@ -46,8 +38,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             });
 
-            console.log('API Response status for app info:', appInfoResponse.status);
-
             if (!appInfoResponse.ok) {
                 const errorText = await appInfoResponse.text();
                 console.error('API Error Response:', errorText);
@@ -55,7 +45,6 @@ document.addEventListener('DOMContentLoaded', function() {
             }
 
             const appData = await appInfoResponse.json();
-            console.log('Received app data:', appData);
             
             // Update application info from profile.raku_ai
             document.getElementById('appName').textContent = appData.appName;
@@ -88,23 +77,19 @@ document.addEventListener('DOMContentLoaded', function() {
         try {
             const user = firebase.auth().currentUser;
             if (!user) {
-                console.log('No user logged in when trying to update receipt stats');
                 return;
             }
 
-            console.log('Current user for receipt stats:', user.uid);
             const token = await user.getIdToken();
             
             // If no dates provided, use today's date for both
             if (!startDate || !endDate) {
                 startDate = moment().format('YYYY-MM-DD');
                 endDate = moment().format('YYYY-MM-DD');
-                console.log('No date range provided, using today:', startDate);
             }
             
             // Build URL with date parameters
             let url = `/api/receipt/stats?start=${startDate}&end=${endDate}`;
-            console.log(`Fetching receipt stats with URL: ${url}`);
             
             const receiptResponse = await fetch(url, {
                 headers: {
@@ -112,11 +97,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             });
 
-            console.log('API Response status for receipt stats:', receiptResponse.status);
-
             if (receiptResponse.ok) {
                 const receiptData = await receiptResponse.json();
-                console.log('Received receipt data:', receiptData);
                 
                 // Update receipt statistics
                 document.getElementById('receiptsSent').textContent = receiptData.receiptCount.toString();
@@ -139,8 +121,6 @@ document.addEventListener('DOMContentLoaded', function() {
         try {
             if (window.jQuery && $.fn.daterangepicker) {
                 const $ = window.jQuery;
-                
-                console.log('Initializing date range picker...');
                 
                 // Initialize the date range picker
                 $('#receiptDateRangePicker').daterangepicker({
@@ -178,17 +158,14 @@ document.addEventListener('DOMContentLoaded', function() {
                 // Set initial value to today
                 const today = moment().format('DD MMM YYYY');
                 $('#receiptDateRangePicker').val(`${today} - ${today}`);
-                console.log('Date picker value set to:', $('#receiptDateRangePicker').val());
                 
                 // Apply handler when date range changes
                 $('#receiptDateRangePicker').on('apply.daterangepicker', function(ev, picker) {
                     const start = picker.startDate.format('YYYY-MM-DD');
                     const end = picker.endDate.format('YYYY-MM-DD');
-                    console.log(`Date range changed to: ${start} to ${end}`);
                     updateReceiptStats(start, end);
                 });
                 
-                console.log('Date range picker initialized with today as default');
                 return true;
             } else {
                 console.error('jQuery or daterangepicker not available');
@@ -200,15 +177,9 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
-    // We shouldn't try to load data immediately, as Firebase auth might not be ready
-    // Instead, we'll do everything in the auth state change handler
-    
     // Handle Firebase auth state changes
-    console.log('Setting up Firebase auth state change listener...');
     firebase.auth().onAuthStateChanged((user) => {
         if (user) {
-            console.log('User logged in, UID:', user.uid);
-            
             // Initialize or refresh application data
             loadApplicationData();
             
@@ -220,11 +191,9 @@ document.addEventListener('DOMContentLoaded', function() {
             // Always update receipt statistics with today's date
             // This ensures we have data even if the date picker isn't initialized
             const today = moment().format('YYYY-MM-DD');
-            console.log('Loading receipt statistics for today:', today);
             updateReceiptStats(today, today);
             
         } else {
-            console.log('User logged out or not logged in, clearing UI...');
             document.getElementById('appName').textContent = '-';
             document.getElementById('appType').textContent = '-';
             document.getElementById('platform').textContent = '-';
@@ -233,6 +202,4 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('cost').textContent = 'Rp0';
         }
     });
-    
-    console.log('ReceiptController initialization complete');
 }); 

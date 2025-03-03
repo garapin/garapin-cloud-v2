@@ -15,8 +15,6 @@ function formatRupiah(amount) {
 // Function to cancel current payment (global for direct HTML access)
 function cancelCurrentPayment() {
     if (currentPaymentId && currentStatusCheckInterval) {
-        console.log(`Cancelling payment ${currentPaymentId}`);
-        
         // Clear the interval first to stop checking
         clearInterval(currentStatusCheckInterval);
         currentStatusCheckInterval = null;
@@ -36,7 +34,6 @@ function cancelCurrentPayment() {
         .then(response => response.json())
         .then(data => {
             if (data.success) {
-                console.log('Payment cancelled successfully:', data.message);
             } else {
                 console.error('Failed to cancel payment:', data.message);
             }
@@ -64,12 +61,10 @@ function checkIframeLoading(iframe, fallbackUrl) {
             
             // If we get here without error and the iframe has loaded content, it's working
             if (iframe.readyState === 'complete' || iframe.contentWindow.document.readyState === 'complete') {
-                console.log('Iframe loaded successfully');
                 return;
             }
             
             // If we couldn't verify the iframe loaded properly, use the fallback
-            console.log('Iframe may be blocked by CSP, falling back to redirect');
             
             // Redirect to the payment page
             setTimeout(() => {
@@ -133,7 +128,6 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // Get user token for authentication
             const token = await user.getIdToken();
-            console.log('Fetching user saldo with token');
             
             // Fetch the user data from the backend
             const response = await fetch('/profile/user-data', {
@@ -144,13 +138,11 @@ document.addEventListener('DOMContentLoaded', function() {
             
             if (response.ok) {
                 const userData = await response.json();
-                console.log('User data retrieved:', userData);
                 
                 // Update the saldo display with the amount from the database
                 if (userData && userData.amount !== undefined) {
                     currentSaldo = userData.amount;
                     document.getElementById('currentSaldo').textContent = formatRupiah(currentSaldo);
-                    console.log('Saldo updated to:', currentSaldo);
                 } else {
                     // Fallback if amount is not available
                     console.warn('Amount field missing in user data response:', userData);
@@ -183,7 +175,6 @@ document.addEventListener('DOMContentLoaded', function() {
             
             if (response.ok) {
                 const profileData = await response.json();
-                console.log('Profile data retrieved:', profileData);
                 
                 // Store the phone number
                 if (profileData && profileData.phone_number) {
@@ -247,7 +238,6 @@ document.addEventListener('DOMContentLoaded', function() {
         // Generate a unique external ID for the invoice
         const externalId = `saldo-${userId}-${Date.now()}`;
         
-        // Create customer data object
         const customerData = {
             given_names: userName || "User",
             email: userEmail || "user@example.com",
@@ -343,7 +333,6 @@ function checkPaymentStatus(paymentId, isInitialCheck = false) {
     fetch(`/payments/status/${paymentId}`)
         .then(response => response.json())
         .then(data => {
-            console.log('Payment status:', data);
             
             // Add payment status to localStorage for tracking
             localStorage.setItem('lastPaymentCheck', Date.now());
@@ -362,8 +351,6 @@ function checkPaymentStatus(paymentId, isInitialCheck = false) {
                 localStorage.removeItem('lastPaymentCheck');
                 localStorage.removeItem('lastPaymentStatus');
                 
-                console.log('Payment successful! Your balance has been updated.');
-                
                 // Reset payment tracking
                 currentPaymentId = null;
                 
@@ -377,14 +364,12 @@ function checkPaymentStatus(paymentId, isInitialCheck = false) {
                 }
             } else if (data.success && data.status === 'PENDING') {
                 // Continue checking - payment is still pending
-                console.log('Payment is still pending, continuing to check...');
             } else if (data.status === 'EXPIRED' || data.status === 'FAILED' || data.status === 'CANCELLED') {
                 // Clear localStorage for expired/failed payments
                 localStorage.removeItem('pendingPaymentId');
                 localStorage.removeItem('paymentStartTime');
                 localStorage.removeItem('lastPaymentCheck');
                 localStorage.removeItem('lastPaymentStatus');
-                console.log('Payment is no longer active:', data.status);
                 
                 // Clear the interval to stop checking
                 if (currentStatusCheckInterval) {
@@ -394,10 +379,8 @@ function checkPaymentStatus(paymentId, isInitialCheck = false) {
                 
                 // Only log expired notification if this is not the initial check
                 if (!isInitialCheck) {
-                    console.log(`Payment ${data.status.toLowerCase()}. Please try again.`);
                 }
             } else {
-                console.log('Unexpected payment status:', data.status);
             }
         })
         .catch(error => {

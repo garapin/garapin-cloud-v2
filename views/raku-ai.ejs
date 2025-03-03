@@ -476,7 +476,6 @@
                 
                 if (userResponse.ok) {
                     const userData = await userResponse.json();
-                    console.log('Received user data:', userData);
                     
                     // Update user's saldo display with amount from the users table
                     if (userData && userData.amount !== undefined) {
@@ -493,25 +492,23 @@
                 }
                 
                 // Fetch the receipt count from the API
-                try {
-                    const receiptResponse = await fetch('/api/raku-ai/receipt-count', {
-                        headers: {
-                            'Authorization': `Bearer ${token}`
-                        }
-                    });
+                const receiptResponse = await fetch('/api/raku-ai/receipt-count', {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                if (receiptResponse.ok) {
+                    const receiptData = await receiptResponse.json();
                     
-                    if (receiptResponse.ok) {
-                        const receiptData = await receiptResponse.json();
-                        console.log('Received receipt count:', receiptData);
-                        
-                        // Update the receipt count display
-                        document.getElementById('receiptCount').textContent = receiptData.count.toString();
+                    // Update receipt count display
+                    if (receiptData && receiptData.total !== undefined) {
+                        document.getElementById('receiptCount').textContent = receiptData.total.toString();
                     } else {
-                        console.error('Failed to fetch receipt count');
                         document.getElementById('receiptCount').textContent = '0';
                     }
-                } catch (receiptError) {
-                    console.error('Error fetching receipt count:', receiptError);
+                } else {
+                    console.error('Failed to fetch receipt count');
                     document.getElementById('receiptCount').textContent = '0';
                 }
                 
@@ -524,7 +521,6 @@
 
                 if (response.ok) {
                     const data = await response.json();
-                    console.log('Received profile data:', data);
                     
                     if (data.raku_ai) {
                         if (data.raku_ai.status === 'Approved') {
@@ -666,16 +662,12 @@
         // Function to load API keys
         async function loadApiKeys() {
             try {
-                console.log('Starting to load API keys...');
                 const user = firebase.auth().currentUser;
                 if (!user) {
-                    console.log('No authenticated user found');
                     return;
                 }
 
-                console.log('Getting Firebase token...');
                 const token = await user.getIdToken();
-                console.log('Token obtained, making API request...');
                 
                 const response = await fetch('/profile/api-keys', {
                     method: 'GET',
@@ -685,55 +677,46 @@
                     }
                 });
 
-                console.log('API Response status:', response.status);
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    console.error('API Error Response:', errorText);
-                    throw new Error(`Failed to fetch API keys: ${response.status} ${response.statusText}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    
+                    // Generate API key list
+                    if (!data || !data.apiKeys || !Array.isArray(data.apiKeys)) {
+                        return;
+                    }
+
+                    const tbody = document.querySelector('#apiKeysTable tbody');
+                    tbody.innerHTML = '';
+
+                    data.apiKeys.forEach(key => {
+                        const row = document.createElement('tr');
+                        row.innerHTML = `
+                            <td>${key.name}</td>
+                            <td>${key.key.substring(0, 12)}...</td>
+                            <td>${formatDateTime(key.created_at)}</td>
+                            <td>${formatDateTime(key.last_used)}</td>
+                            <td>${user.displayName || user.email}</td>
+                            <td>
+                                <span class="badge ${key.status === 'active' ? 'bg-success' : 'bg-danger'}">${key.status}</span>
+                            </td>
+                            <td>
+                                <div class="btn-group">
+                                    <button class="btn btn-sm btn-outline-secondary" onclick="copyToClipboard('${key.key}')" ${key.status === 'disabled' ? 'disabled' : ''}>
+                                        <i class="bi bi-clipboard"></i>
+                                    </button>
+                                    <button class="btn btn-sm ${key.status === 'active' ? 'btn-outline-danger' : 'btn-outline-secondary'}" 
+                                            onclick="disableApiKey('${key.id}')"
+                                            ${key.status === 'disabled' ? 'disabled' : ''}>
+                                        <i class="bi bi-power"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        `;
+                        tbody.appendChild(row);
+                    });
+                } else {
+                    console.error('API Error Response:', await response.text());
                 }
-
-                const data = await response.json();
-                console.log('API Response data:', data);
-
-                if (!data.success) {
-                    throw new Error(data.error || 'Failed to fetch API keys');
-                }
-
-                const tbody = document.querySelector('#apiKeysTable tbody');
-                tbody.innerHTML = '';
-
-                if (!data.apiKeys || !Array.isArray(data.apiKeys)) {
-                    console.log('No API keys found or invalid data format');
-                    return;
-                }
-
-                console.log(`Rendering ${data.apiKeys.length} API keys`);
-                data.apiKeys.forEach(key => {
-                    const row = document.createElement('tr');
-                    row.innerHTML = `
-                        <td>${key.name}</td>
-                        <td>${key.key.substring(0, 12)}...</td>
-                        <td>${formatDateTime(key.created_at)}</td>
-                        <td>${formatDateTime(key.last_used)}</td>
-                        <td>${user.displayName || user.email}</td>
-                        <td>
-                            <span class="badge ${key.status === 'active' ? 'bg-success' : 'bg-danger'}">${key.status}</span>
-                        </td>
-                        <td>
-                            <div class="btn-group">
-                                <button class="btn btn-sm btn-outline-secondary" onclick="copyToClipboard('${key.key}')" ${key.status === 'disabled' ? 'disabled' : ''}>
-                                    <i class="bi bi-clipboard"></i>
-                                </button>
-                                <button class="btn btn-sm ${key.status === 'active' ? 'btn-outline-danger' : 'btn-outline-secondary'}" 
-                                        onclick="disableApiKey('${key.id}')"
-                                        ${key.status === 'disabled' ? 'disabled' : ''}>
-                                    <i class="bi bi-power"></i>
-                                </button>
-                            </div>
-                        </td>
-                    `;
-                    tbody.appendChild(row);
-                });
             } catch (error) {
                 console.error('Error loading API keys:', error);
                 // Show error message in the table
@@ -899,19 +882,10 @@
         document.addEventListener('DOMContentLoaded', function() {
             // Initialize date range picker
             try {
-                // First, verify that jQuery is properly loaded
-                if (typeof jQuery === 'undefined') {
-                    console.error('jQuery is not defined for date range picker.');
-                    document.getElementById('statusDateRangePicker').disabled = true;
-                    document.getElementById('statusDateRangePicker').placeholder = 'Date range unavailable';
-                    throw new Error('jQuery is not available');
-                }
-                
                 // Store jQuery in a local variable to ensure it's available
                 const $ = jQuery;
                 
                 if ($ && $.fn && $.fn.daterangepicker) {
-                    console.log('Initializing status date range picker...');
                     $('#statusDateRangePicker').daterangepicker({
                         opens: 'left',
                         maxDate: new Date(),
@@ -943,16 +917,15 @@
                         }
                     });
 
-                    // Set initial value in input - current month
-                    const startDate = moment().startOf('month').format('DD MMM YYYY');
-                    const endDate = moment().endOf('month').format('DD MMM YYYY');
+                    // Set initial value in input
+                    const startDate = moment().format('DD MMM YYYY');
+                    const endDate = moment().format('DD MMM YYYY');
                     $('#statusDateRangePicker').val(`${startDate} - ${endDate}`);
-                    console.log('Status date range picker initialized:', $('#statusDateRangePicker').val());
-
+                    
                     // Event handler when date range is applied
                     $('#statusDateRangePicker').on('apply.daterangepicker', function(ev, picker) {
                         $(this).val(picker.startDate.format('DD MMM YYYY') + ' - ' + picker.endDate.format('DD MMM YYYY'));
-                        console.log('Status date range applied:', $(this).val());
+                        
                         // Update statistics based on date range
                         updateStatistics(picker.startDate.format('YYYY-MM-DD'), picker.endDate.format('YYYY-MM-DD'));
                     });
@@ -983,10 +956,13 @@
                 
                 if (receiptResponse.ok) {
                     const receiptData = await receiptResponse.json();
-                    console.log('Received receipt count for date range:', receiptData);
                     
-                    // Update the receipt count display
-                    document.getElementById('receiptCount').textContent = receiptData.count.toString();
+                    // Update receipt count display
+                    if (receiptData && receiptData.total !== undefined) {
+                        document.getElementById('receiptCount').textContent = receiptData.total.toString();
+                    } else {
+                        console.error('Failed to fetch receipt count for date range');
+                    }
                 } else {
                     console.error('Failed to fetch receipt count for date range');
                 }

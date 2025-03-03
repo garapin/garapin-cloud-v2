@@ -722,10 +722,16 @@ app.get('/raku-ai/receipt', async (req, res) => {
 app.get('/raku-ai/tambah-saldo', async (req, res) => {
     try {
         // Firebase configuration for the client
-        const firebaseConfig = getFirebaseConfig();
+        // const firebaseConfig = getFirebaseConfig();
         
         // Render the template with Firebase config
-        res.render('tambah-saldo', { firebaseConfig, user: req.session.user });
+        res.render('tambah-saldo', { 
+            firebaseConfig, 
+            user: req.session.user,
+            pageTitle: 'Tambah Saldo',
+            currentPage: 'raku-ai',
+            baseUrl: process.env.BASE_URL || 'http://localhost:3000'
+        });
     } catch (error) {
         console.error('Error rendering tambah-saldo page:', error);
         res.status(500).send('Internal Server Error');

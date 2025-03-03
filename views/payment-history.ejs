@@ -157,25 +157,19 @@
                 }
                 
                 const firebaseConfig = JSON.parse(firebaseConfigElement.dataset.firebaseConfig);
-                console.log('Initializing Firebase with config:', { ...firebaseConfig, apiKey: '***' });
                 
                 // Check if Firebase is already initialized
                 if (!firebase.apps.length) {
-                    console.log('Initializing new Firebase app');
                     firebase.initializeApp(firebaseConfig);
-                } else {
-                    console.log('Firebase app already initialized');
                 }
 
                 // Check authentication status after a short delay to ensure Firebase is ready
                 setTimeout(() => {
                     firebase.auth().onAuthStateChanged(function(user) {
                         if (user) {
-                            console.log('User authenticated:', user.email);
                             // Don't access storage directly here
                             loadPaymentHistory();
                         } else {
-                            console.log('User not authenticated, redirecting to login');
                             window.location.href = '/login';
                         }
                     });
@@ -199,7 +193,6 @@
                 const $ = jQuery;
                 
                 if ($ && $.fn && $.fn.daterangepicker) {
-                    console.log('Initializing date range picker...');
                     $('#dateRangePicker').daterangepicker({
                         opens: 'left',
                         maxDate: new Date(),
@@ -235,12 +228,10 @@
                     const startDate = moment().subtract(29, 'days').format('DD MMM YYYY');
                     const endDate = moment().format('DD MMM YYYY');
                     $('#dateRangePicker').val(`${startDate} - ${endDate}`);
-                    console.log('Date range picker initialized:', $('#dateRangePicker').val());
 
                     // Event handler when date range is applied
                     $('#dateRangePicker').on('apply.daterangepicker', function(ev, picker) {
                         $(this).val(picker.startDate.format('DD MMM YYYY') + ' - ' + picker.endDate.format('DD MMM YYYY'));
-                        console.log('Date range applied:', $(this).val());
                         // Automatically load payment history with the new date range
                         loadPaymentHistory();
                     });
@@ -322,7 +313,6 @@
                     let startDate, endDate;
                     try {
                         if (typeof jQuery !== 'undefined') {
-                            console.log('Trying to get date range from daterangepicker...');
                             const $ = jQuery;
                             // First try to use the daterangepicker directly
                             const datePickerInput = $('#dateRangePicker');
@@ -331,16 +321,13 @@
                             if (dateRange) {
                                 startDate = dateRange.startDate.format('YYYY-MM-DD');
                                 endDate = dateRange.endDate.format('YYYY-MM-DD');
-                                console.log('Got date range from picker:', startDate, 'to', endDate);
                             } else {
                                 // If daterangepicker object isn't available, try to parse from the input value
-                                console.log('Daterangepicker object not available, parsing from input value');
                                 const dateRangeText = datePickerInput.val();
                                 if (dateRangeText && dateRangeText.includes(' - ')) {
                                     const [start, end] = dateRangeText.split(' - ');
                                     startDate = moment(start, 'DD MMM YYYY').format('YYYY-MM-DD');
                                     endDate = moment(end, 'DD MMM YYYY').format('YYYY-MM-DD');
-                                    console.log('Parsed date range from input:', startDate, 'to', endDate);
                                 } else {
                                     throw new Error('Date range text not available or invalid format');
                                 }
@@ -353,7 +340,6 @@
                         // Fallback to last 30 days
                         startDate = moment().subtract(29, 'days').format('YYYY-MM-DD');
                         endDate = moment().format('YYYY-MM-DD');
-                        console.log('Using fallback date range:', startDate, 'to', endDate);
                     }
                     
                     // Get current user and token with better error handling
@@ -372,12 +358,10 @@
                         
                         const user = firebase.auth().currentUser;
                         if (!user) {
-                            console.log('No user is signed in, waiting for auth state to change...');
                             // Wait for auth state to change
                             const currentUser = await new Promise((resolve, reject) => {
                                 const unsubscribe = firebase.auth().onAuthStateChanged(user => {
                                     if (user) {
-                                        console.log('User authenticated during wait');
                                         unsubscribe();
                                         resolve(user);
                                     }
@@ -385,7 +369,6 @@
                                 // Timeout after 3 seconds
                                 setTimeout(() => {
                                     unsubscribe();
-                                    console.log('Auth wait timed out');
                                     resolve(null);
                                 }, 3000);
                             });
@@ -398,10 +381,7 @@
                             }
                         }
                         
-                        console.log('Getting auth token for API call...');
                         const token = await firebase.auth().currentUser.getIdToken(true);
-                        
-                        console.log('Making API call to: /payments/history with date range:', startDate, 'to', endDate);
                         
                         // Make API call to get payment history
                         const response = await fetch(`/payments/history?start=${startDate}&end=${endDate}&page=${page}&limit=${pageSize}`, {
@@ -418,7 +398,6 @@
                         }
 
                         const data = await response.json();
-                        console.log('API response data:', data);
                         
                         // Update pagination info
                         totalRecords = data.total || 0;
