@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Garapin Cloud - Payment History</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.css">
+    <link rel="stylesheet" href="/css/style.css">
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-auth-compat.js"></script>
+</head>
+<body>
+    <div class="container-fluid" data-firebase-config='<%= JSON.stringify(firebaseConfig) %>'>
+        <div class="row">
+            <%- include('partials/sidebar', {currentPage: 'raku-ai'}) %>
+
+            <!-- Main content -->
+            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 bg-light">
+                <%- include('partials/header', {pageTitle: 'Payment History'}) %>
+
+                <!-- History Content -->
+                <div class="row mb-4">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-center mb-4">
+                                    <h5 class="card-title mb-0">Payment Transaction History</h5>
+                                    <div class="d-flex align-items-center">
+                                        <div class="input-group" style="width: 300px;">
+                                            <span class="input-group-text bg-light">
+                                                <i class="bi bi-calendar-range text-primary"></i>
+                                            </span>
+                                            <input type="text" class="form-control bg-light border-start-0 date-input" 
+                                                id="dateRangePicker" 
+                                                placeholder="Select date range" 
+                                                readonly
+                                                style="cursor: pointer;"
+                                                title="Click to select date range">
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Table section -->
+                                <div class="table-responsive">
+                                    <table class="table table-hover" id="paymentHistoryTable">
+                                        <thead>
+                                            <tr>
+                                                <th>Date & Time</th>
+                                                <th>Invoice ID</th>
+                                                <th>Status</th>
+                                                <th>Amount</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="paymentHistoryTableBody">
+                                            <!-- Placeholder loading row -->
+                                            <tr id="loadingRow">
+                                                <td colspan="4" class="text-center py-4">
+                                                    <div class="spinner-border text-primary" role="status">
+                                                        <span class="visually-hidden">Loading...</span>
+                                                    </div>
+                                                    <p class="mt-2 mb-0">Loading payment history...</p>
+                                                </td>
+                                            </tr>
+                                            <!-- No data message (initially hidden) -->
+                                            <tr id="noDataRow" style="display: none;">
+                                                <td colspan="4" class="text-center py-4">
+                                                    <i class="bi bi-exclamation-circle text-muted" style="font-size: 2rem;"></i>
+                                                    <p class="mt-2 mb-0">No payment records found for the selected period.</p>
+                                                </td>
+                                            </tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                <!-- Pagination -->
+                                <nav aria-label="Payment history pagination" class="mt-4" id="paginationSection" style="display: none;">
+                                    <ul class="pagination justify-content-center" id="pagination">
+                                        <!-- Pagination will be generated by JavaScript -->
+                                    </ul>
+                                </nav>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Invoice Details Modal -->
+    <div class="modal fade" id="invoiceDetailsModal" tabindex="-1" aria-labelledby="invoiceDetailsModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="invoiceDetailsModalLabel">Invoice Details</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <p><strong>Invoice ID:</strong> <span id="modalInvoiceId"></span></p>
+                            <p><strong>Status:</strong> <span id="modalStatus" class="badge"></span></p>
+                        </div>
+                        <div class="col-md-6">
+                            <p><strong>Date:</strong> <span id="modalDate"></span></p>
+                            <p><strong>Amount:</strong> <span id="modalAmount"></span></p>
+                        </div>
+                    </div>
+                    <hr>
+                    <div class="mb-3">
+                        <h6>Payment Details</h6>
+                        <table class="table table-sm table-borderless">
+                            <tbody>
+                                <tr>
+                                    <td width="200"><strong>Payment Method:</strong></td>
+                                    <td id="modalPaymentMethod">-</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Payment Channel:</strong></td>
+                                    <td id="modalPaymentChannel">-</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>External ID:</strong></td>
+                                    <td id="modalExternalId">-</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Xendit ID:</strong></td>
+                                    <td id="modalXenditId">-</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/momentjs/latest/moment.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.min.js"></script>
+    <script src="/js/controllers/headerController.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize Firebase
+            try {
+                const firebaseConfigElement = document.querySelector('[data-firebase-config]');
+                if (!firebaseConfigElement) {
+                    console.error('Firebase config element not found');
+                    throw new Error('Firebase config element not found');
+                }
+                
+                const firebaseConfig = JSON.parse(firebaseConfigElement.dataset.firebaseConfig);
+                console.log('Initializing Firebase with config:', { ...firebaseConfig, apiKey: '***' });
+                
+                // Check if Firebase is already initialized
+                if (!firebase.apps.length) {
+                    console.log('Initializing new Firebase app');
+                    firebase.initializeApp(firebaseConfig);
+                } else {
+                    console.log('Firebase app already initialized');
+                }
+
+                // Check authentication status after a short delay to ensure Firebase is ready
+                setTimeout(() => {
+                    firebase.auth().onAuthStateChanged(function(user) {
+                        if (user) {
+                            console.log('User authenticated:', user.email);
+                            // Don't access storage directly here
+                            loadPaymentHistory();
+                        } else {
+                            console.log('User not authenticated, redirecting to login');
+                            window.location.href = '/login';
+                        }
+                    });
+                }, 500);
+            } catch (error) {
+                console.error('Firebase initialization error:', error);
+            }
+
+            // Initialize date range picker
+            try {
+                // First, verify that jQuery is properly loaded
+                if (typeof jQuery === 'undefined') {
+                    console.error('jQuery is not defined. Loading a fallback version.');
+                    // We could add a fallback here, but it won't help with existing scripts that expect jQuery
+                    document.getElementById('dateRangePicker').disabled = true;
+                    document.getElementById('dateRangePicker').placeholder = 'Date filtering unavailable';
+                    throw new Error('jQuery is not available');
+                }
+                
+                // Store jQuery in a local variable to ensure it's available
+                const $ = jQuery;
+                
+                if ($ && $.fn && $.fn.daterangepicker) {
+                    console.log('Initializing date range picker...');
+                    $('#dateRangePicker').daterangepicker({
+                        opens: 'left',
+                        maxDate: new Date(),
+                        autoApply: false,
+                        showDropdowns: true,
+                        alwaysShowCalendars: true,
+                        ranges: {
+                           'Today': [moment(), moment()],
+                           'Yesterday': [moment().subtract(1, 'days'), moment().subtract(1, 'days')],
+                           'Last 7 Days': [moment().subtract(6, 'days'), moment()],
+                           'Last 30 Days': [moment().subtract(29, 'days'), moment()],
+                           'This Month': [moment().startOf('month'), moment().endOf('month')],
+                           'Last Month': [moment().subtract(1, 'month').startOf('month'), moment().subtract(1, 'month').endOf('month')]
+                        },
+                        startDate: moment().subtract(29, 'days'),
+                        endDate: moment(),
+                        locale: {
+                            format: 'DD MMM YYYY',
+                            separator: ' - ',
+                            applyLabel: 'Apply',
+                            cancelLabel: 'Cancel',
+                            fromLabel: 'From',
+                            toLabel: 'To',
+                            customRangeLabel: 'Custom Range',
+                            weekLabel: 'W',
+                            daysOfWeek: ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'],
+                            monthNames: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
+                            firstDay: 1
+                        }
+                    });
+
+                    // Set initial value in input
+                    const startDate = moment().subtract(29, 'days').format('DD MMM YYYY');
+                    const endDate = moment().format('DD MMM YYYY');
+                    $('#dateRangePicker').val(`${startDate} - ${endDate}`);
+                    console.log('Date range picker initialized:', $('#dateRangePicker').val());
+
+                    // Event handler when date range is applied
+                    $('#dateRangePicker').on('apply.daterangepicker', function(ev, picker) {
+                        $(this).val(picker.startDate.format('DD MMM YYYY') + ' - ' + picker.endDate.format('DD MMM YYYY'));
+                        console.log('Date range applied:', $(this).val());
+                        // Automatically load payment history with the new date range
+                        loadPaymentHistory();
+                    });
+                } else {
+                    console.error('daterangepicker plugin not available');
+                    document.getElementById('dateRangePicker').disabled = true;
+                    document.getElementById('dateRangePicker').placeholder = 'Date filtering unavailable';
+                    
+                    // Still add click handler for filter button as fallback
+                    // document.getElementById('applyFilterBtn').addEventListener('click', function() {
+                    //     loadPaymentHistory();
+                    // });
+                }
+            } catch (error) {
+                console.error('Date range picker initialization error:', error);
+                // Provide fallback for filter button
+                // try {
+                //     document.getElementById('applyFilterBtn').addEventListener('click', function() {
+                //         loadPaymentHistory();
+                //     });
+                // } catch (btnError) {
+                //     console.error('Failed to add filter button event listener:', btnError);
+                // }
+            }
+
+            // Initialize pagination variables
+            let currentPage = 1;
+            const pageSize = 10;
+            let totalRecords = 0;
+            let currentData = [];
+
+            // Format currency as Rupiah
+            function formatRupiah(amount) {
+                return new Intl.NumberFormat('id-ID', {
+                    style: 'currency',
+                    currency: 'IDR',
+                    minimumFractionDigits: 0
+                }).format(amount);
+            }
+
+            // Format date and time
+            function formatDateTime(dateString) {
+                return moment(dateString).format('DD MMM YYYY, HH:mm:ss');
+            }
+
+            // Get status badge class
+            function getStatusBadgeClass(status) {
+                switch(status.toUpperCase()) {
+                    case 'PAID': return 'bg-success';
+                    case 'PENDING': return 'bg-warning text-dark';
+                    case 'EXPIRED': return 'bg-secondary';
+                    case 'FAILED': return 'bg-danger';
+                    case 'CANCELLED': return 'bg-danger';
+                    case 'WAITING_PAYMENT': return 'bg-warning text-dark';
+                    default: return 'bg-info';
+                }
+            }
+
+            // Create a row element for a payment record
+            function createPaymentRow(payment) {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${formatDateTime(payment.payment_time || payment.created_at)}</td>
+                    <td>${payment.invoice_id || '-'}</td>
+                    <td><span class="badge ${getStatusBadgeClass(payment.status)}">${payment.status}</span></td>
+                    <td>${formatRupiah(payment.amount)}</td>
+                `;
+                return row;
+            }
+
+            // Load payment history data
+            async function loadPaymentHistory(page = 1) {
+                try {
+                    // Show loading
+                    document.getElementById('loadingRow').style.display = 'table-row';
+                    document.getElementById('noDataRow').style.display = 'none';
+                    
+                    // Get date range values - with improved fallback if jQuery or daterangepicker isn't available
+                    let startDate, endDate;
+                    try {
+                        if (typeof jQuery !== 'undefined') {
+                            console.log('Trying to get date range from daterangepicker...');
+                            const $ = jQuery;
+                            // First try to use the daterangepicker directly
+                            const datePickerInput = $('#dateRangePicker');
+                            const dateRange = datePickerInput.data('daterangepicker');
+                            
+                            if (dateRange) {
+                                startDate = dateRange.startDate.format('YYYY-MM-DD');
+                                endDate = dateRange.endDate.format('YYYY-MM-DD');
+                                console.log('Got date range from picker:', startDate, 'to', endDate);
+                            } else {
+                                // If daterangepicker object isn't available, try to parse from the input value
+                                console.log('Daterangepicker object not available, parsing from input value');
+                                const dateRangeText = datePickerInput.val();
+                                if (dateRangeText && dateRangeText.includes(' - ')) {
+                                    const [start, end] = dateRangeText.split(' - ');
+                                    startDate = moment(start, 'DD MMM YYYY').format('YYYY-MM-DD');
+                                    endDate = moment(end, 'DD MMM YYYY').format('YYYY-MM-DD');
+                                    console.log('Parsed date range from input:', startDate, 'to', endDate);
+                                } else {
+                                    throw new Error('Date range text not available or invalid format');
+                                }
+                            }
+                        } else {
+                            throw new Error('jQuery not available');
+                        }
+                    } catch (dateError) {
+                        console.warn('Error getting date range:', dateError);
+                        // Fallback to last 30 days
+                        startDate = moment().subtract(29, 'days').format('YYYY-MM-DD');
+                        endDate = moment().format('YYYY-MM-DD');
+                        console.log('Using fallback date range:', startDate, 'to', endDate);
+                    }
+                    
+                    // Get current user and token with better error handling
+                    try {
+                        // Ensure Firebase is loaded
+                        if (typeof firebase === 'undefined') {
+                            console.error('Firebase SDK not loaded');
+                            throw new Error('Firebase SDK not loaded');
+                        }
+                        
+                        // Ensure auth is initialized
+                        if (!firebase.auth) {
+                            console.error('Firebase auth not available');
+                            throw new Error('Firebase auth not available');
+                        }
+                        
+                        const user = firebase.auth().currentUser;
+                        if (!user) {
+                            console.log('No user is signed in, waiting for auth state to change...');
+                            // Wait for auth state to change
+                            const currentUser = await new Promise((resolve, reject) => {
+                                const unsubscribe = firebase.auth().onAuthStateChanged(user => {
+                                    if (user) {
+                                        console.log('User authenticated during wait');
+                                        unsubscribe();
+                                        resolve(user);
+                                    }
+                                });
+                                // Timeout after 3 seconds
+                                setTimeout(() => {
+                                    unsubscribe();
+                                    console.log('Auth wait timed out');
+                                    resolve(null);
+                                }, 3000);
+                            });
+                            
+                            // Check again
+                            if (!currentUser && !firebase.auth().currentUser) {
+                                console.error('Still no user after waiting, redirecting to login');
+                                window.location.href = '/login';
+                                return;
+                            }
+                        }
+                        
+                        console.log('Getting auth token for API call...');
+                        const token = await firebase.auth().currentUser.getIdToken(true);
+                        
+                        console.log('Making API call to: /payments/history with date range:', startDate, 'to', endDate);
+                        
+                        // Make API call to get payment history
+                        const response = await fetch(`/payments/history?start=${startDate}&end=${endDate}&page=${page}&limit=${pageSize}`, {
+                            headers: {
+                                'Authorization': `Bearer ${token}`
+                            }
+                        });
+
+                        if (!response.ok) {
+                            console.error('API response error:', response.status, response.statusText);
+                            const errorText = await response.text();
+                            console.error('Error response:', errorText);
+                            throw new Error(`Failed to fetch payment history: ${response.status} ${response.statusText}`);
+                        }
+
+                        const data = await response.json();
+                        console.log('API response data:', data);
+                        
+                        // Update pagination info
+                        totalRecords = data.total || 0;
+                        currentPage = page;
+                        currentData = data.payments || [];
+                        
+                        // Clear the table body (except for special rows)
+                        const tableBody = document.getElementById('paymentHistoryTableBody');
+                        const loadingRow = document.getElementById('loadingRow');
+                        const noDataRow = document.getElementById('noDataRow');
+                        
+                        // Remove all rows except loading and no data rows
+                        Array.from(tableBody.children).forEach(child => {
+                            if (child !== loadingRow && child !== noDataRow) {
+                                tableBody.removeChild(child);
+                            }
+                        });
+
+                        // Add the data rows or show no data message
+                        if (!currentData || currentData.length === 0) {
+                            loadingRow.style.display = 'none';
+                            noDataRow.style.display = 'table-row';
+                            document.getElementById('paginationSection').style.display = 'none';
+                        } else {
+                            loadingRow.style.display = 'none';
+                            noDataRow.style.display = 'none';
+                            
+                            // Add each payment row
+                            currentData.forEach(payment => {
+                                tableBody.appendChild(createPaymentRow(payment));
+                            });
+                            
+                            // Update pagination
+                            updatePagination();
+                        }
+                    } catch (authError) {
+                        console.error('Authentication error:', authError);
+                        window.location.href = '/login';
+                        return;
+                    }
+                } catch (error) {
+                    console.error('Error loading payment history:', error);
+                    document.getElementById('loadingRow').style.display = 'none';
+                    
+                    // Show error message
+                    const tableBody = document.getElementById('paymentHistoryTableBody');
+                    const errorRow = document.createElement('tr');
+                    errorRow.innerHTML = `
+                        <td colspan="4" class="text-center text-danger py-4">
+                            <i class="bi bi-exclamation-triangle-fill" style="font-size: 2rem;"></i>
+                            <p class="mt-2 mb-0">Error loading payment history. Please try again later.</p>
+                        </td>
+                    `;
+                    tableBody.appendChild(errorRow);
+                    document.getElementById('paginationSection').style.display = 'none';
+                }
+            }
+
+            // Update pagination controls
+            function updatePagination() {
+                const totalPages = Math.ceil(totalRecords / pageSize);
+                
+                if (totalPages <= 1) {
+                    document.getElementById('paginationSection').style.display = 'none';
+                    return;
+                }
+                
+                document.getElementById('paginationSection').style.display = 'block';
+                
+                const pagination = document.getElementById('pagination');
+                pagination.innerHTML = '';
+                
+                // Previous button
+                const prevLi = document.createElement('li');
+                prevLi.className = `page-item ${currentPage === 1 ? 'disabled' : ''}`;
+                prevLi.innerHTML = `<a class="page-link" href="#" data-page="${currentPage - 1}">Previous</a>`;
+                pagination.appendChild(prevLi);
+                
+                // Page numbers
+                const startPage = Math.max(1, currentPage - 2);
+                const endPage = Math.min(totalPages, startPage + 4);
+                
+                for (let i = startPage; i <= endPage; i++) {
+                    const pageLi = document.createElement('li');
+                    pageLi.className = `page-item ${i === currentPage ? 'active' : ''}`;
+                    pageLi.innerHTML = `<a class="page-link" href="#" data-page="${i}">${i}</a>`;
+                    pagination.appendChild(pageLi);
+                }
+                
+                // Next button
+                const nextLi = document.createElement('li');
+                nextLi.className = `page-item ${currentPage === totalPages ? 'disabled' : ''}`;
+                nextLi.innerHTML = `<a class="page-link" href="#" data-page="${currentPage + 1}">Next</a>`;
+                pagination.appendChild(nextLi);
+                
+                // Add event listeners to pagination links
+                pagination.querySelectorAll('.page-link').forEach(link => {
+                    link.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        const page = parseInt(this.dataset.page);
+                        if (page >= 1 && page <= totalPages) {
+                            loadPaymentHistory(page);
+                        }
+                    });
+                });
+            }
+        });
+    </script>
+</body>
+</html> 

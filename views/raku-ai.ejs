@@ -6,6 +6,7 @@
     <title>Garapin Cloud - Raku AI</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.css">
     <link rel="stylesheet" href="/css/style.css">
     <style>
         .raku-card {
@@ -13,6 +14,19 @@
         }
         .raku-card h3 {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+        .date-input {
+            background-color: transparent !important;
+            border-color: rgba(255, 255, 255, 0.2) !important;
+            color: white !important;
+        }
+        .date-input::placeholder {
+            color: rgba(255, 255, 255, 0.7) !important;
+        }
+        .date-input-group .input-group-text {
+            background-color: transparent !important;
+            border-color: rgba(255, 255, 255, 0.2) !important;
+            color: white !important;
         }
     </style>
     <!-- Firebase SDK -->
@@ -36,7 +50,10 @@
                             <div class="card-body p-3 d-flex flex-column">
                                 <h5 class="card-title mb-3" style="color: #ffffff; font-weight: normal;">Saldo</h5>
                                 <h2 class="card-text mb-4" style="font-size: 3.5rem;" id="userSaldoDisplay">Loading...</h2>
-                                <a href="/raku-ai/tambah-saldo" class="btn btn-primary mt-auto">Tambah Saldo</a>
+                                <div class="d-flex mt-auto">
+                                    <a href="/raku-ai/tambah-saldo" class="btn btn-primary me-2" style="width: 80%;">Tambah Saldo</a>
+                                    <a href="/raku-ai/history" class="btn btn-outline-light" style="width: 20%;">History</a>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -47,25 +64,35 @@
                             <div class="card-body p-3 d-flex flex-column">
                                 <div class="d-flex justify-content-between align-items-start mb-3">
                                     <h5 class="card-title mb-0" style="color: #ffffff; font-weight: normal;">Status</h5>
-                                    <span class="text-white-50">1-Feb-2025 - 28-Feb-2025</span>
+                                    <div class="input-group date-input-group" style="width: 286px;">
+                                        <span class="input-group-text">
+                                            <i class="bi bi-calendar-range"></i>
+                                        </span>
+                                        <input type="text" class="form-control date-input" 
+                                            id="statusDateRangePicker" 
+                                            placeholder="Select date range" 
+                                            readonly
+                                            style="cursor: pointer; font-size: 0.85rem;"
+                                            title="Click to select date range">
+                                    </div>
                                 </div>
                                 <div class="d-flex justify-content-between align-items-center mt-auto">
                                     <div style="width: 100%;">
                                         <div class="d-flex justify-content-between align-items-center mb-1">
                                             <span style="font-weight: normal;">Receipt</span>
-                                            <h3 class="mb-0" style="font-weight: normal; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; min-width: 60px; text-align: right;">100</h3>
+                                            <h3 class="mb-0" style="font-weight: normal; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; min-width: 60px; text-align: right;" id="receiptCount">Loading...</h3>
                                         </div>
                                         <div class="d-flex justify-content-between align-items-center mb-1">
                                             <span style="font-weight: normal;">Marketing & Promotion</span>
-                                            <h3 class="mb-0" style="font-weight: normal; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; min-width: 60px; text-align: right;">100</h3>
+                                            <h3 class="mb-0" style="font-weight: normal; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; min-width: 60px; text-align: right;">0</h3>
                                         </div>
                                         <div class="d-flex justify-content-between align-items-center mb-1">
                                             <span style="font-weight: normal;">Product & Service</span>
-                                            <h3 class="mb-0" style="font-weight: normal; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; min-width: 60px; text-align: right;">100</h3>
+                                            <h3 class="mb-0" style="font-weight: normal; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; min-width: 60px; text-align: right;">0</h3>
                                         </div>
                                         <div class="d-flex justify-content-between align-items-center">
                                             <span style="font-weight: normal;">Order & Reservation</span>
-                                            <h3 class="mb-0" style="font-weight: normal; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; min-width: 60px; text-align: right;">100</h3>
+                                            <h3 class="mb-0" style="font-weight: normal; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; min-width: 60px; text-align: right;">0</h3>
                                         </div>
                                     </div>
                                 </div>
@@ -349,6 +376,9 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/momentjs/latest/moment.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.min.js"></script>
     <script src="/js/controllers/headerController.js"></script>
     <script src="/js/controllers/rakuAiController.js"></script>
     
@@ -459,6 +489,29 @@
                     } else {
                         document.getElementById('userSaldoDisplay').textContent = 'Rp.0';
                     }
+                }
+                
+                // Fetch the receipt count from the API
+                try {
+                    const receiptResponse = await fetch('/api/raku-ai/receipt-count', {
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        }
+                    });
+                    
+                    if (receiptResponse.ok) {
+                        const receiptData = await receiptResponse.json();
+                        console.log('Received receipt count:', receiptData);
+                        
+                        // Update the receipt count display
+                        document.getElementById('receiptCount').textContent = receiptData.count.toString();
+                    } else {
+                        console.error('Failed to fetch receipt count');
+                        document.getElementById('receiptCount').textContent = '0';
+                    }
+                } catch (receiptError) {
+                    console.error('Error fetching receipt count:', receiptError);
+                    document.getElementById('receiptCount').textContent = '0';
                 }
                 
                 // Then get the Raku AI request data
@@ -840,6 +893,106 @@
                 loadApiKeys();
             }
         });
+
+        // Initialize date range picker for Status section
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initialize date range picker
+            try {
+                // First, verify that jQuery is properly loaded
+                if (typeof jQuery === 'undefined') {
+                    console.error('jQuery is not defined for date range picker.');
+                    document.getElementById('statusDateRangePicker').disabled = true;
+                    document.getElementById('statusDateRangePicker').placeholder = 'Date range unavailable';
+                    throw new Error('jQuery is not available');
+                }
+                
+                // Store jQuery in a local variable to ensure it's available
+                const $ = jQuery;
+                
+                if ($ && $.fn && $.fn.daterangepicker) {
+                    console.log('Initializing status date range picker...');
+                    $('#statusDateRangePicker').daterangepicker({
+                        opens: 'left',
+                        maxDate: new Date(),
+                        autoApply: false,
+                        showDropdowns: true,
+                        alwaysShowCalendars: true,
+                        ranges: {
+                           'Today': [moment(), moment()],
+                           'Yesterday': [moment().subtract(1, 'days'), moment().subtract(1, 'days')],
+                           'Last 7 Days': [moment().subtract(6, 'days'), moment()],
+                           'Last 30 Days': [moment().subtract(29, 'days'), moment()],
+                           'This Month': [moment().startOf('month'), moment().endOf('month')],
+                           'Last Month': [moment().subtract(1, 'month').startOf('month'), moment().subtract(1, 'month').endOf('month')]
+                        },
+                        startDate: moment().startOf('month'),
+                        endDate: moment().endOf('month'),
+                        locale: {
+                            format: 'DD MMM YYYY',
+                            separator: ' - ',
+                            applyLabel: 'Apply',
+                            cancelLabel: 'Cancel',
+                            fromLabel: 'From',
+                            toLabel: 'To',
+                            customRangeLabel: 'Custom Range',
+                            weekLabel: 'W',
+                            daysOfWeek: ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'],
+                            monthNames: ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'],
+                            firstDay: 1
+                        }
+                    });
+
+                    // Set initial value in input - current month
+                    const startDate = moment().startOf('month').format('DD MMM YYYY');
+                    const endDate = moment().endOf('month').format('DD MMM YYYY');
+                    $('#statusDateRangePicker').val(`${startDate} - ${endDate}`);
+                    console.log('Status date range picker initialized:', $('#statusDateRangePicker').val());
+
+                    // Event handler when date range is applied
+                    $('#statusDateRangePicker').on('apply.daterangepicker', function(ev, picker) {
+                        $(this).val(picker.startDate.format('DD MMM YYYY') + ' - ' + picker.endDate.format('DD MMM YYYY'));
+                        console.log('Status date range applied:', $(this).val());
+                        // Update statistics based on date range
+                        updateStatistics(picker.startDate.format('YYYY-MM-DD'), picker.endDate.format('YYYY-MM-DD'));
+                    });
+                } else {
+                    console.error('daterangepicker plugin not available for status section');
+                    document.getElementById('statusDateRangePicker').disabled = true;
+                    document.getElementById('statusDateRangePicker').placeholder = 'Date range unavailable';
+                }
+            } catch (error) {
+                console.error('Status date range picker initialization error:', error);
+            }
+        });
+
+        // Function to update statistics based on date range
+        async function updateStatistics(startDate, endDate) {
+            try {
+                const user = firebase.auth().currentUser;
+                if (!user) return;
+
+                const token = await user.getIdToken();
+                
+                // Update the receipt count based on the date range
+                const receiptResponse = await fetch(`/api/raku-ai/receipt-count?start=${startDate}&end=${endDate}`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                
+                if (receiptResponse.ok) {
+                    const receiptData = await receiptResponse.json();
+                    console.log('Received receipt count for date range:', receiptData);
+                    
+                    // Update the receipt count display
+                    document.getElementById('receiptCount').textContent = receiptData.count.toString();
+                } else {
+                    console.error('Failed to fetch receipt count for date range');
+                }
+            } catch (error) {
+                console.error('Error updating statistics:', error);
+            }
+        }
     </script>
 </body>
 </html> 

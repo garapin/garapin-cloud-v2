@@ -126,56 +126,130 @@ async function uploadProfilePictureToStorage(photoURL, uid) {
     }
 }
 
-// MongoDB Connection Setup
+// MongoDB Connection
 const connectDB = async () => {
     try {
-        // Clear any existing connections
-        await mongoose.disconnect();
-
-        // Configure mongoose
-        mongoose.set('strictQuery', false);
-
-        // Connection options
+        console.log('Connecting to MongoDB:', `mongodb://${process.env.MONGODB_USER ? '****:****@' : ''}${process.env.MONGODB_HOST}:${process.env.MONGODB_PORT}/${process.env.MONGODB_DATABASE}?authSource=admin&directConnection=true`);
         const options = {
             useNewUrlParser: true,
             useUnifiedTopology: true,
-            serverSelectionTimeoutMS: 30000,
-            socketTimeoutMS: 45000,
-            family: 4,
-            maxPoolSize: 10,
-            minPoolSize: 2,
-            connectTimeoutMS: 30000,
-            heartbeatFrequencyMS: 2000,
-            retryWrites: true,
-            retryReads: true
         };
 
-        // Verify MongoDB URI
-        console.log('Connecting to MongoDB:', process.env.MONGODB_URI.replace(/\/\/[^:]+:[^@]+@/, '//****:****@'));
-        
-        // Connect to MongoDB
         await mongoose.connect(process.env.MONGODB_URI, options);
         console.log('MongoDB connected successfully');
         console.log('Connected to database:', mongoose.connection.name);
 
-        // Handle connection events
+        // Set up event listeners for the MongoDB connection
         mongoose.connection.on('error', (err) => {
             console.error('MongoDB connection error:', err);
-            setTimeout(connectDB, 5000);
         });
 
         mongoose.connection.on('disconnected', () => {
-            console.warn('MongoDB disconnected. Attempting to reconnect...');
-            setTimeout(connectDB, 5000);
+            console.log('MongoDB disconnected. Attempting to reconnect...');
         });
 
         mongoose.connection.on('reconnected', () => {
-            console.log('MongoDB reconnected successfully');
+            console.log('MongoDB reconnected successfully.');
         });
 
-    } catch (error) {
-        console.error('MongoDB connection failed:', error);
-        setTimeout(connectDB, 5000);
+        // Connect to Raku database if URI is provided
+        if (process.env.MONGODB_RAKU_URI) {
+          // We'll use a separate connection for the Raku database
+          const rakuMongoose = new mongoose.Mongoose();
+          
+          console.log('Connecting to Raku MongoDB:', process.env.MONGODB_RAKU_URI.replace(/mongodb:\/\/([^:]+):[^@]+@/, 'mongodb://****:****@'));
+          
+          await rakuMongoose.connect(process.env.MONGODB_RAKU_URI, options);
+          console.log('Raku MongoDB connected successfully');
+          console.log('Connected to Raku database:', rakuMongoose.connection.name);
+          
+          // More flexible schema for the receipts collection to handle variations in the data structure
+          const receiptSchema = new rakuMongoose.Schema({
+            status: { type: String, required: false },
+            // Define more fields if needed, but make them optional
+            _id: { type: mongoose.Schema.Types.ObjectId, required: false },
+            receipt_id: { type: String, required: false },
+            created_at: { type: Date, required: false },
+            updated_at: { type: Date, required: false }
+          }, { 
+            collection: 'receipt',
+            // Allow for fields not defined in the schema
+            strict: false 
+          });
+          
+          // Create model
+          global.RakuReceipt = rakuMongoose.model('Receipt', receiptSchema);
+          
+          // Create price_rece model
+          const priceReceSchema = new rakuMongoose.Schema({
+            receipt_id: { type: rakuMongoose.Schema.Types.ObjectId, required: true },
+            cost: { type: Number, required: true },
+            created_at: { type: Date, default: Date.now }
+          }, { 
+            collection: 'price_rece',
+            strict: false 
+          });
+          
+          global.RakuPriceRece = rakuMongoose.model('PriceRece', priceReceSchema);
+          
+          // Test query to check if we can access the data
+          try {
+            const collections = await rakuMongoose.connection.db.listCollections().toArray();
+            console.log('Available collections in Raku database:', collections.map(c => c.name));
+            
+            // First, try to get all receipts to see what we have
+            const allReceipts = await global.RakuReceipt.find({}).limit(5).lean();
+            console.log('Sample receipts from database:', 
+              allReceipts.length ? JSON.stringify(allReceipts.slice(0, 2)) : 'No receipts found');
+              
+            if (allReceipts.length > 0) {
+              // Check what fields are available on receipt documents
+              console.log('Receipt document fields:', Object.keys(allReceipts[0]));
+              
+              // Check if the status field exists and how many documents have it
+              const statusCount = await global.RakuReceipt.countDocuments({ status: { $exists: true } });
+              console.log(`Receipts with 'status' field: ${statusCount}`);
+              
+              // Check for different status values
+              const sentCount = await global.RakuReceipt.countDocuments({ status: 'sent' });
+              console.log(`Receipts with status 'sent': ${sentCount}`);
+              
+              const sentUpperCount = await global.RakuReceipt.countDocuments({ status: 'SENT' });
+              console.log(`Receipts with status 'SENT': ${sentUpperCount}`);
+              
+              // Case-insensitive search
+              const sentCaseInsensitive = await global.RakuReceipt.countDocuments({ 
+                status: { $regex: new RegExp('^sent$', 'i') } 
+              });
+              console.log(`Receipts with status 'sent' (case-insensitive): ${sentCaseInsensitive}`);
+              
+              // Try looking for a different status field name
+              const stateCount = await global.RakuReceipt.countDocuments({ state: { $exists: true } });
+              console.log(`Receipts with 'state' field: ${stateCount}`);
+              
+              if (stateCount > 0) {
+                const stateSentCount = await global.RakuReceipt.countDocuments({ state: 'sent' });
+                console.log(`Receipts with state 'sent': ${stateSentCount}`);
+              }
+            }
+          } catch (err) {
+            console.error('Error testing Raku receipt access:', err);
+          }
+          
+          // Set up event listeners for Raku MongoDB connection
+          rakuMongoose.connection.on('error', (err) => {
+            console.error('Raku MongoDB connection error:', err);
+          });
+
+          rakuMongoose.connection.on('disconnected', () => {
+            console.log('Raku MongoDB disconnected');
+          });
+        } else {
+          console.log('No Raku MongoDB URI provided, skipping connection');
+        }
+    } catch (err) {
+        console.error('Failed to connect to MongoDB:', err);
+        process.exit(1);
     }
 };
 
@@ -646,12 +720,25 @@ app.get('/raku-ai/receipt', async (req, res) => {
 
 // Add Credit page
 app.get('/raku-ai/tambah-saldo', async (req, res) => {
-    res.render('tambah-saldo', { 
+    try {
+        // Firebase configuration for the client
+        const firebaseConfig = getFirebaseConfig();
+        
+        // Render the template with Firebase config
+        res.render('tambah-saldo', { firebaseConfig, user: req.session.user });
+    } catch (error) {
+        console.error('Error rendering tambah-saldo page:', error);
+        res.status(500).send('Internal Server Error');
+    }
+});
+
+// Payment history page
+app.get('/raku-ai/history', async (req, res) => {
+    res.render('payment-history', { 
         firebaseConfig,
         user: req.user,
-        pageTitle: 'Tambah Saldo',
-        currentPage: 'raku-ai',
-        baseUrl: process.env.BASE_URL || req.protocol + '://' + req.get('host')
+        pageTitle: 'Payment History',
+        currentPage: 'raku-ai'
     });
 });
 
@@ -1426,13 +1513,26 @@ app.get('/api/raku-ai/application-info', verifyToken, async (req, res) => {
             });
         }
 
+        // Get receipt count from Raku database if available
+        let receiptCount = 0;
+        if (global.RakuReceipt) {
+            try {
+                receiptCount = await global.RakuReceipt.countDocuments({ status: 'sent' });
+                console.log(`Found ${receiptCount} receipts with status 'sent' in Raku database`);
+            } catch (err) {
+                console.error('Error counting receipts from Raku database:', err);
+            }
+        } else {
+            console.log('RakuReceipt model not available, using default count');
+        }
+
         // Return formatted data from profile.raku_ai
         const response = {
             applicationName: profile.raku_ai.app_name || '-',
             applicationType: profile.raku_ai.business_type || '-',
             platform: profile.raku_ai.platform || '-',
             status: profile.raku_ai.status || '-',
-            receiptsSent: profile.raku_ai.features?.receipt?.selected ? 100 : 0, // Placeholder based on feature selection
+            receiptsSent: receiptCount, // Use actual receipt count instead of placeholder
             cost: 100, // Placeholder for now
             dateRange: '1-Feb-2025 - 28-Feb-2025' // Placeholder for now
         };
@@ -1451,6 +1551,219 @@ app.get('/api/raku-ai/application-info', verifyToken, async (req, res) => {
             receiptsSent: 0,
             cost: 0,
             dateRange: '-'
+        });
+    }
+});
+
+// Add endpoint to get receipt count from Raku database
+app.get('/api/raku-ai/receipt-count', verifyToken, async (req, res) => {
+    try {
+        console.log('Fetching receipt count from Raku database');
+        console.log('Date range:', req.query.start, 'to', req.query.end);
+        
+        if (!global.RakuReceipt) {
+            console.log('RakuReceipt model not available');
+            return res.json({ count: 0 });
+        }
+        
+        // Get the collection name from the model
+        const collectionName = global.RakuReceipt.collection.collectionName;
+        console.log(`Using collection name: ${collectionName}`);
+        
+        // Build query with date range if provided
+        const query = { status: 'sent' };
+        
+        // Add date range filter if provided
+        if (req.query.start && req.query.end) {
+            const startDate = new Date(req.query.start);
+            const endDate = new Date(req.query.end);
+            
+            // Ensure end date is set to the end of day
+            endDate.setHours(23, 59, 59, 999);
+            
+            console.log('Filtering by date range:', startDate, 'to', endDate);
+            
+            // First try created_at field
+            query.created_at = { $gte: startDate, $lte: endDate };
+            
+            // Count with created_at date filter
+            const createdAtCount = await global.RakuReceipt.countDocuments(query);
+            console.log(`Found ${createdAtCount} receipts with status 'sent' and created_at in date range`);
+            
+            // If no documents match with created_at, try sentDate field
+            if (createdAtCount === 0) {
+                delete query.created_at;
+                query.sentDate = { $gte: startDate, $lte: endDate };
+                const sentDateCount = await global.RakuReceipt.countDocuments(query);
+                console.log(`Found ${sentDateCount} receipts with status 'sent' and sentDate in date range`);
+                return res.json({ count: sentDateCount });
+            }
+            
+            return res.json({ count: createdAtCount });
+        }
+        
+        // If no date range, count all receipts with sent status
+        const sentCount = await global.RakuReceipt.countDocuments({ status: 'sent' });
+        console.log(`Found ${sentCount} receipts with status 'sent'`);
+        
+        const sentUpperCount = await global.RakuReceipt.countDocuments({ status: 'SENT' });
+        console.log(`Found ${sentUpperCount} receipts with status 'SENT'`);
+        
+        // Case-insensitive search
+        const sentCaseInsensitive = await global.RakuReceipt.countDocuments({ 
+            status: { $regex: new RegExp('^sent$', 'i') } 
+        });
+        console.log(`Found ${sentCaseInsensitive} receipts with status 'sent' (case-insensitive)`);
+        
+        // Return the maximum count we found from any of these queries
+        const count = Math.max(sentCount, sentUpperCount, sentCaseInsensitive);
+        
+        res.json({ count });
+    } catch (error) {
+        console.error('Error fetching receipt count:', error);
+        res.status(500).json({ 
+            error: 'Failed to fetch receipt count', 
+            details: error.message,
+            count: 0 
+        });
+    }
+});
+
+// Add endpoint to get receipt application info
+app.get('/api/receipt/application-info', verifyToken, async (req, res) => {
+    try {
+        console.log('Fetching receipt application info for user:', req.user.provider_uid);
+        
+        // Find the profile using the imported Profile model
+        const profile = await Profile.findOne({ 
+            provider_uid: req.user.provider_uid 
+        }).lean();
+        
+        console.log('Found profile:', profile ? 'Yes' : 'No');
+        if (profile) {
+            console.log('Raku AI data:', profile.raku_ai);
+        }
+
+        if (!profile || !profile.raku_ai) {
+            console.log('No Raku AI profile found for user');
+            return res.status(404).json({
+                error: 'Raku AI profile not found',
+                appName: '-',
+                appType: '-',
+                platform: '-',
+                status: '-'
+            });
+        }
+
+        // Return the application info
+        res.json({
+            appName: profile.raku_ai.app_name || '-',
+            appType: profile.raku_ai.application_type || '-',
+            platform: profile.raku_ai.platform || '-',
+            status: profile.raku_ai.status || '-'
+        });
+    } catch (error) {
+        console.error('Error fetching receipt application info:', error);
+        res.status(500).json({ 
+            error: 'Failed to fetch receipt application info', 
+            details: error.message
+        });
+    }
+});
+
+// Add endpoint to get receipt statistics
+app.get('/api/receipt/stats', verifyToken, async (req, res) => {
+    try {
+        console.log('Fetching receipt statistics');
+        console.log('Date range:', req.query.start, 'to', req.query.end);
+        
+        if (!global.RakuReceipt) {
+            console.log('RakuReceipt model not available');
+            return res.json({ receiptCount: 0, totalCost: 0 });
+        }
+        
+        // Get user info from the token
+        // The key issue: req.user.uid is not set by our auth middleware
+        // Instead we need to use req.user.provider_uid or req.user._id
+        if (!req.user) {
+            console.log('No user found in request');
+            return res.json({ receiptCount: 0, totalCost: 0 });
+        }
+        
+        // Try different user ID formats
+        const possibleUserIds = [
+            req.user.provider_uid,          // Firebase UID
+            req.user._id,                   // MongoDB ObjectId as object
+            req.user._id ? req.user._id.toString() : null, // MongoDB ObjectId as string
+            req.user.id                     // Alternative ID field
+        ].filter(id => id); // Filter out null/undefined
+        
+        console.log('Possible user IDs to try:', possibleUserIds);
+        
+        // Use an $or query to try all possible ID formats
+        const query = { 
+            status: 'sent',
+            $or: possibleUserIds.map(id => ({ user_id: id }))
+        };
+        
+        // Add date range filter if provided
+        if (req.query.start && req.query.end) {
+            // Set the start date to the beginning of the day (00:00:00)
+            const startDate = new Date(req.query.start);
+            startDate.setUTCHours(0, 0, 0, 0);
+            
+            // Set the end date to the end of the day (23:59:59.999)
+            const endDate = new Date(req.query.end);
+            endDate.setUTCHours(23, 59, 59, 999);
+            
+            console.log('Modified date range:', 
+                startDate.toISOString(), 'to', 
+                endDate.toISOString());
+            
+            query.sentDate = {
+                $gte: startDate,
+                $lte: endDate
+            };
+        }
+        
+        console.log('Final query:', JSON.stringify(query));
+        
+        // For diagnostics: Check how many receipts exist in total with status 'sent'
+        const totalSentReceipts = await global.RakuReceipt.countDocuments({ status: 'sent' });
+        console.log(`Total receipts with status 'sent' (any user): ${totalSentReceipts}`);
+        
+        // Use aggregation to get both count and total cost in one query
+        const result = await global.RakuReceipt.aggregate([
+            { $match: query },
+            { 
+                $group: {
+                    _id: null,
+                    receiptCount: { $sum: 1 },
+                    totalCost: { $sum: { $ifNull: ["$price_rece", 0] } }
+                }
+            }
+        ]);
+        
+        console.log('Aggregation result:', result);
+        
+        // Extract the results or use defaults if no matching documents
+        const receiptCount = result.length > 0 ? result[0].receiptCount : 0;
+        const totalCost = result.length > 0 ? result[0].totalCost : 0;
+        
+        console.log(`Found ${receiptCount} receipts with status 'sent'`);
+        console.log(`Total cost: ${totalCost}`);
+        
+        res.json({
+            receiptCount,
+            totalCost
+        });
+    } catch (error) {
+        console.error('Error fetching receipt statistics:', error);
+        res.status(500).json({ 
+            error: 'Failed to fetch receipt statistics', 
+            details: error.message,
+            receiptCount: 0,
+            totalCost: 0
         });
     }
 });

@@ -3,6 +3,7 @@ const router = express.Router();
 const User = require('../models/User');
 const Billing = require('../models/Billing');
 const axios = require('axios');
+const { verifyToken } = require('../middleware/auth');
 require('dotenv').config();
 
 // Generate a unique invoice ID
@@ -1250,6 +1251,63 @@ router.get('/check-success', async function(req, res) {
         return res.status(500).json({
             success: false,
             message: 'Failed to check payment success status',
+            error: error.message
+        });
+    }
+});
+
+// Payment History route
+router.get('/history', verifyToken, async function(req, res) {
+    try {
+        // Get the MongoDB _id of the user instead of Firebase UID
+        const userId = req.user._id;
+        const page = parseInt(req.query.page) || 1;
+        const limit = parseInt(req.query.limit) || 10;
+        const skip = (page - 1) * limit;
+        
+        // Parse date range
+        let startDate = req.query.start ? new Date(req.query.start) : new Date(new Date().setDate(new Date().getDate() - 30));
+        let endDate = req.query.end ? new Date(req.query.end) : new Date();
+        
+        // Set end date to end of the day
+        endDate.setHours(23, 59, 59, 999);
+        
+        // Create query filters
+        const query = {
+            user_id: userId,
+            created_at: { $gte: startDate, $lte: endDate }
+        };
+        
+        // Add console log for debugging
+        console.log('Payment history query:', {
+            userId: userId,
+            startDate: startDate,
+            endDate: endDate
+        });
+        
+        // Count total records for pagination
+        const total = await Billing.countDocuments(query);
+        
+        // Get paginated records
+        const billings = await Billing.find(query)
+            .sort({ created_at: -1 })
+            .skip(skip)
+            .limit(limit);
+        
+        console.log(`Found ${billings.length} billing records for user ${userId}`);
+        
+        return res.json({
+            success: true,
+            total: total,
+            payments: billings,
+            page: page,
+            pages: Math.ceil(total / limit)
+        });
+    } catch (error) {
+        console.error('Error fetching payment history:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Error fetching payment history',
             error: error.message
         });
     }
