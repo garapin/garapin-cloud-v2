@@ -1564,12 +1564,20 @@ app.get('/api/raku-ai/application-info', verifyToken, async (req, res) => {
 // Add endpoint to get receipt count from Raku database
 app.get('/api/raku-ai/receipt-count', verifyToken, async (req, res) => {
     try {
+        console.log('------------------------------');
         console.log('Fetching receipt count from Raku database');
-        console.log('Date range:', req.query.start, 'to', req.query.end);
         
+        // Check if RakuReceipt is initialized
         if (!global.RakuReceipt) {
-            console.log('RakuReceipt model not available');
+            console.log('RakuReceipt model not available - MONGODB_RAKU_URI might not be set or connection failed');
             return res.json({ count: 0 });
+        }
+        
+        // Log the MONGODB_RAKU_URI status (masked for security)
+        if (process.env.MONGODB_RAKU_URI) {
+            console.log('MONGODB_RAKU_URI is set');
+        } else {
+            console.log('MONGODB_RAKU_URI is NOT set');
         }
         
         // Get the collection name from the model
@@ -1578,6 +1586,8 @@ app.get('/api/raku-ai/receipt-count', verifyToken, async (req, res) => {
         
         // Build query with date range if provided
         const query = { status: 'sent' };
+        
+        console.log('Date range params:', req.query.start, 'to', req.query.end);
         
         // Add date range filter if provided
         if (req.query.start && req.query.end) {
@@ -1621,8 +1631,17 @@ app.get('/api/raku-ai/receipt-count', verifyToken, async (req, res) => {
         });
         console.log(`Found ${sentCaseInsensitive} receipts with status 'sent' (case-insensitive)`);
         
+        // Also try status='approved' since that might be used instead of 'sent'
+        const approvedCount = await global.RakuReceipt.countDocuments({ status: 'approved' });
+        console.log(`Found ${approvedCount} receipts with status 'approved'`);
+        
+        const approvedUpperCount = await global.RakuReceipt.countDocuments({ status: 'APPROVED' });
+        console.log(`Found ${approvedUpperCount} receipts with status 'APPROVED'`);
+        
         // Return the maximum count we found from any of these queries
-        const count = Math.max(sentCount, sentUpperCount, sentCaseInsensitive);
+        const count = Math.max(sentCount, sentUpperCount, sentCaseInsensitive, approvedCount, approvedUpperCount);
+        console.log(`Returning final count: ${count}`);
+        console.log('------------------------------');
         
         res.json({ count });
     } catch (error) {

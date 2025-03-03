@@ -492,7 +492,9 @@
                 }
                 
                 // Fetch the receipt count from the API
-                const receiptResponse = await fetch('/api/raku-ai/receipt-count', {
+                const today = new Date();
+                const formattedDate = today.toISOString().split('T')[0]; // Format as YYYY-MM-DD
+                const receiptResponse = await fetch(`/api/raku-ai/receipt-count?start=${formattedDate}&end=${formattedDate}`, {
                     headers: {
                         'Authorization': `Bearer ${token}`
                     }
@@ -502,8 +504,8 @@
                     const receiptData = await receiptResponse.json();
                     
                     // Update receipt count display
-                    if (receiptData && receiptData.total !== undefined) {
-                        document.getElementById('receiptCount').textContent = receiptData.total.toString();
+                    if (receiptData && receiptData.count !== undefined) {
+                        document.getElementById('receiptCount').textContent = receiptData.count.toString();
                     } else {
                         document.getElementById('receiptCount').textContent = '0';
                     }
@@ -900,8 +902,8 @@
                            'This Month': [moment().startOf('month'), moment().endOf('month')],
                            'Last Month': [moment().subtract(1, 'month').startOf('month'), moment().subtract(1, 'month').endOf('month')]
                         },
-                        startDate: moment().startOf('month'),
-                        endDate: moment().endOf('month'),
+                        startDate: moment(),
+                        endDate: moment(),
                         locale: {
                             format: 'DD MMM YYYY',
                             separator: ' - ',
@@ -958,8 +960,8 @@
                     const receiptData = await receiptResponse.json();
                     
                     // Update receipt count display
-                    if (receiptData && receiptData.total !== undefined) {
-                        document.getElementById('receiptCount').textContent = receiptData.total.toString();
+                    if (receiptData && receiptData.count !== undefined) {
+                        document.getElementById('receiptCount').textContent = receiptData.count.toString();
                     } else {
                         console.error('Failed to fetch receipt count for date range');
                     }
