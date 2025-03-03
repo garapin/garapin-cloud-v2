@@ -191,7 +191,7 @@
                                     <pre class="bg-dark text-light p-3 rounded"><code>curl -X POST https://hermes.raku.id/receipt/send-receipt \
   -H "Accept: application/json" \
   -H "Authorization: Bearer {api-key}" \
-  -H "destination_number: {phone number with 62 e.g 628123456789}" \
+  -H "destination_number: {phone number with Indonesia country code 62 e.g. 628123456789}" \
   -H "Content-Type: application/json" \
   -d '{
     "merchantName": "{nama merchant}",
@@ -212,7 +212,7 @@
                                             </div>
                                             <div class="mb-3">
                                                 <label class="form-label">Destination Number</label>
-                                                <input type="text" class="form-control" id="phoneNumber" placeholder="Enter Phone Number with 62. e.g 628123456789">
+                                                <input type="text" class="form-control" id="phoneNumber" placeholder="Enter Phone Number with Indonesia country code 62. e.g. 628123456789 (not +62)">
                                             </div>
                                         </div>
 
@@ -345,7 +345,6 @@
                 document.getElementById('invoicePDFbase64').value = '';
                 
             } catch (error) {
-                console.error('Error:', error);
                 alert('Error: ' + (error.message || 'Failed to send receipt. Please try again.'));
             } finally {
                 // Hide loading state

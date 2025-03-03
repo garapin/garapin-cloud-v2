@@ -84,14 +84,16 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // If no dates provided, use today's date for both
             if (!startDate || !endDate) {
-                startDate = moment().format('YYYY-MM-DD');
-                endDate = moment().format('YYYY-MM-DD');
+                // Adjust for UTC+7 timezone - use moment timezone with Asia/Jakarta
+                const today = moment().utcOffset('+07:00');
+                startDate = today.format('YYYY-MM-DD');
+                endDate = today.format('YYYY-MM-DD');
             }
             
-            // Build URL with date parameters
-            let url = `/api/receipt/stats?start=${startDate}&end=${endDate}`;
+            // Use the same API endpoint as raku-ai.ejs for consistency
+            const receiptCountUrl = `/api/raku-ai/receipt-count?start=${startDate}&end=${endDate}&timezone=+07:00`;
             
-            const receiptResponse = await fetch(url, {
+            const receiptResponse = await fetch(receiptCountUrl, {
                 headers: {
                     'Authorization': `Bearer ${token}`
                 }
@@ -100,17 +102,19 @@ document.addEventListener('DOMContentLoaded', function() {
             if (receiptResponse.ok) {
                 const receiptData = await receiptResponse.json();
                 
-                // Update receipt statistics
-                document.getElementById('receiptsSent').textContent = receiptData.receiptCount.toString();
-                document.getElementById('cost').textContent = formatCurrency(receiptData.totalCost);
+                // Update receipt count from the count field in the response
+                document.getElementById('receiptsSent').textContent = receiptData.count !== undefined ? receiptData.count.toString() : '0';
+                
+                // For cost, we'll use a fixed value per receipt
+                document.getElementById('cost').textContent = formatCurrency(receiptData.count * 1000); // Using price_rece value of 1000 per receipt
             } else {
                 const errorText = await receiptResponse.text();
-                console.error('API Error Response for receipt stats:', errorText);
+                console.error('[receiptController.js] API Error Response for receipt stats:', errorText);
                 document.getElementById('receiptsSent').textContent = '0';
                 document.getElementById('cost').textContent = 'Rp0';
             }
         } catch (error) {
-            console.error('Error updating receipt statistics:', error);
+            console.error('[receiptController.js] Error updating receipt statistics:', error);
             document.getElementById('receiptsSent').textContent = '0';
             document.getElementById('cost').textContent = 'Rp0';
         }
@@ -122,7 +126,7 @@ document.addEventListener('DOMContentLoaded', function() {
             if (window.jQuery && $.fn.daterangepicker) {
                 const $ = window.jQuery;
                 
-                // Initialize the date range picker
+                // Initialize the date range picker with UTC+7 timezone
                 $('#receiptDateRangePicker').daterangepicker({
                     opens: 'left',
                     maxDate: new Date(),
@@ -130,16 +134,16 @@ document.addEventListener('DOMContentLoaded', function() {
                     showDropdowns: true,
                     alwaysShowCalendars: true,
                     ranges: {
-                       'Today': [moment(), moment()],
-                       'Yesterday': [moment().subtract(1, 'days'), moment().subtract(1, 'days')],
-                       'Last 7 Days': [moment().subtract(6, 'days'), moment()],
-                       'Last 30 Days': [moment().subtract(29, 'days'), moment()],
-                       'This Month': [moment().startOf('month'), moment().endOf('month')],
-                       'Last Month': [moment().subtract(1, 'month').startOf('month'), moment().subtract(1, 'month').endOf('month')]
+                       'Today': [moment().utcOffset('+07:00'), moment().utcOffset('+07:00')],
+                       'Yesterday': [moment().utcOffset('+07:00').subtract(1, 'days'), moment().utcOffset('+07:00').subtract(1, 'days')],
+                       'Last 7 Days': [moment().utcOffset('+07:00').subtract(6, 'days'), moment().utcOffset('+07:00')],
+                       'Last 30 Days': [moment().utcOffset('+07:00').subtract(29, 'days'), moment().utcOffset('+07:00')],
+                       'This Month': [moment().utcOffset('+07:00').startOf('month'), moment().utcOffset('+07:00').endOf('month')],
+                       'Last Month': [moment().utcOffset('+07:00').subtract(1, 'month').startOf('month'), moment().utcOffset('+07:00').subtract(1, 'month').endOf('month')]
                     },
                     // Default to today instead of current month
-                    startDate: moment(),
-                    endDate: moment(),
+                    startDate: moment().utcOffset('+07:00'),
+                    endDate: moment().utcOffset('+07:00'),
                     locale: {
                         format: 'DD MMM YYYY',
                         separator: ' - ',
@@ -156,7 +160,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 });
 
                 // Set initial value to today
-                const today = moment().format('DD MMM YYYY');
+                const today = moment().utcOffset('+07:00').format('DD MMM YYYY');
                 $('#receiptDateRangePicker').val(`${today} - ${today}`);
                 
                 // Apply handler when date range changes
@@ -190,7 +194,7 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // Always update receipt statistics with today's date
             // This ensures we have data even if the date picker isn't initialized
-            const today = moment().format('YYYY-MM-DD');
+            const today = moment().utcOffset('+07:00').format('YYYY-MM-DD');
             updateReceiptStats(today, today);
             
         } else {

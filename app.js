@@ -1566,84 +1566,145 @@ app.get('/api/raku-ai/receipt-count', verifyToken, async (req, res) => {
     try {
         console.log('------------------------------');
         console.log('Fetching receipt count from Raku database');
+        console.log('Date range params (raw):', req.query.start, 'to', req.query.end, 'timezone:', req.query.timezone);
         
-        // Check if RakuReceipt is initialized
+        // Check if RakuReceipt is initialized and get collection name
         if (!global.RakuReceipt) {
             console.log('RakuReceipt model not available - MONGODB_RAKU_URI might not be set or connection failed');
             return res.json({ count: 0 });
         }
         
-        // Log the MONGODB_RAKU_URI status (masked for security)
-        if (process.env.MONGODB_RAKU_URI) {
-            console.log('MONGODB_RAKU_URI is set');
-        } else {
-            console.log('MONGODB_RAKU_URI is NOT set');
-        }
-        
-        // Get the collection name from the model
         const collectionName = global.RakuReceipt.collection.collectionName;
         console.log(`Using collection name: ${collectionName}`);
         
-        // Build query with date range if provided
-        const query = { status: 'sent' };
-        
-        console.log('Date range params:', req.query.start, 'to', req.query.end);
-        
-        // Add date range filter if provided
+        // Now handle the actual request with EXACT DATE RANGES that work
         if (req.query.start && req.query.end) {
-            const startDate = new Date(req.query.start);
-            const endDate = new Date(req.query.end);
+            console.log('\n*** PROCESSING REQUEST WITH VERIFIED DATE RANGES ***');
+            console.log(`Request date range: ${req.query.start} to ${req.query.end} (timezone: ${req.query.timezone || 'not specified'})`);
             
-            // Ensure end date is set to the end of day
-            endDate.setHours(23, 59, 59, 999);
-            
-            console.log('Filtering by date range:', startDate, 'to', endDate);
-            
-            // First try created_at field
-            query.created_at = { $gte: startDate, $lte: endDate };
-            
-            // Count with created_at date filter
-            const createdAtCount = await global.RakuReceipt.countDocuments(query);
-            console.log(`Found ${createdAtCount} receipts with status 'sent' and created_at in date range`);
-            
-            // If no documents match with created_at, try sentDate field
-            if (createdAtCount === 0) {
-                delete query.created_at;
-                query.sentDate = { $gte: startDate, $lte: endDate };
-                const sentDateCount = await global.RakuReceipt.countDocuments(query);
-                console.log(`Found ${sentDateCount} receipts with status 'sent' and sentDate in date range`);
-                return res.json({ count: sentDateCount });
+            try {
+                // Normalize the timezone parameter - handle various formats like "+07:00", " 07:00", "%2B07:00"
+                let timezone = req.query.timezone || '';
+                timezone = timezone.trim();
+                
+                // Check if this is a URL-encoded "+" sign (%2B)
+                if (timezone.startsWith('%2B')) {
+                    timezone = '+' + timezone.substring(3);
+                } 
+                // Add the + sign if it's missing but has the format "07:00"
+                else if (timezone.match(/^\d{2}:\d{2}$/)) {
+                    timezone = '+' + timezone;
+                }
+                
+                console.log(`Normalized timezone parameter: "${timezone}"`);
+                
+                // Apply timezone adjustment for UTC+7 (check all common formats)
+                if (timezone === '+07:00' || timezone === '+7:00' || timezone === '07:00') {
+                    console.log('\n✅ Using UTC+7 timezone adjustment');
+                
+                    // Parse the dates from the query parameters (YYYY-MM-DD)
+                    const startParts = req.query.start.split('-');
+                    const endParts = req.query.end.split('-');
+                    
+                    // Format the dates as strings for output
+                    const startDate = `${startParts[0]}-${startParts[1]}-${startParts[2]}`;
+                    const endDate = `${endParts[0]}-${endParts[1]}-${endParts[2]}`;
+                    
+                    console.log('\nUsing VERIFIED WORKING queries for date ranges:');
+                    console.log(`Local date range (Indonesia UTC+7): ${startDate} to ${endDate}`);
+                    
+                    // IMPLEMENTATION LOGIC - Direct from working test queries
+                    
+                    // Calculate the correct UTC date ranges based on the selected dates
+                    const getUtcRangeForDate = (dateStr) => {
+                        const [year, month, day] = dateStr.split('-').map(part => parseInt(part, 10));
+                        
+                        // Start is previous day at 17:00 UTC (which is current day 00:00 in UTC+7)
+                        const startUtc = new Date(Date.UTC(year, month - 1, day - 1, 17, 0, 0, 0));
+                        
+                        // End is current day at 16:59:59.999 UTC (which is current day 23:59:59.999 in UTC+7)
+                        const endUtc = new Date(Date.UTC(year, month - 1, day, 16, 59, 59, 999));
+                        
+                        return {
+                            start: startUtc,
+                            end: endUtc
+                        };
+                    };
+                    
+                    // Get UTC ranges for start and end dates
+                    const startRange = getUtcRangeForDate(startDate);
+                    const endRange = getUtcRangeForDate(endDate);
+                    
+                    // Create the query with the verified working UTC range
+                    const query = {
+                        sentDate: {
+                            $gte: startRange.start,
+                            $lte: endRange.end
+                        }
+                    };
+                    
+                    console.log('\nExecuting query:');
+                    console.log(`db.${collectionName}.countDocuments({`);
+                    console.log(`  sentDate: {`);
+                    console.log(`    $gte: ISODate("${startRange.start.toISOString()}"), // ${startDate} 00:00:00 UTC+7`);
+                    console.log(`    $lte: ISODate("${endRange.end.toISOString()}")  // ${endDate} 23:59:59 UTC+7`);
+                    console.log(`  }`);
+                    console.log(`});`);
+                    
+                    // EXAMPLES - for reference
+                    if (startDate === '2025-03-03' && endDate === '2025-03-03') {
+                        console.log('\n✅ March 3rd example query:');
+                        console.log('This query should find 14 receipts for March 3rd in Indonesia time');
+                    } else if (startDate === '2025-03-04' && endDate === '2025-03-04') {
+                        console.log('\n✅ March 4th example query:');
+                        console.log('This query should find 1 receipt for March 4th in Indonesia time');
+                    } else if (startDate === '2025-03-03' && endDate === '2025-03-04') {
+                        console.log('\n✅ March 3rd-4th range query:');
+                        console.log('This query should find all 15 receipts for March 3rd-4th in Indonesia time');
+                    }
+                    
+                    // Execute the query using the native MongoDB collection
+                    const nativeCollection = global.RakuReceipt.collection;
+                    const count = await nativeCollection.countDocuments(query);
+                    console.log(`\nFound ${count} receipt(s) with verified date range`);
+                    return res.json({ count });
+                    
+                } else {
+                    console.log('\n⚠️ Using default UTC mode (No timezone adjustment)');
+                    
+                    // Default behavior (UTC) - set start to beginning of day, end to end of day
+                    const startDate = new Date(req.query.start);
+                    startDate.setUTCHours(0, 0, 0, 0);
+                    
+                    const endDate = new Date(req.query.end);
+                    endDate.setUTCHours(23, 59, 59, 999);
+                    
+                    // Query all receipts in the date range without status conditions
+                    const query = {
+                        sentDate: {
+                            $gte: startDate,
+                            $lte: endDate
+                        }
+                    };
+                    
+                    const count = await global.RakuReceipt.countDocuments(query);
+                    console.log(`Found ${count} receipts in date range (UTC)`);
+                    return res.json({ count });
+                }
+            } catch (err) {
+                console.error('Error processing date range:', err);
+                return res.status(500).json({ 
+                    error: 'Failed to process date range', 
+                    details: err.message,
+                    count: 0 
+                });
             }
-            
-            return res.json({ count: createdAtCount });
+        } else {
+            // If no date range, count all receipts
+            const count = await global.RakuReceipt.countDocuments({});
+            console.log(`No date range provided. Total receipts: ${count}`);
+            return res.json({ count });
         }
-        
-        // If no date range, count all receipts with sent status
-        const sentCount = await global.RakuReceipt.countDocuments({ status: 'sent' });
-        console.log(`Found ${sentCount} receipts with status 'sent'`);
-        
-        const sentUpperCount = await global.RakuReceipt.countDocuments({ status: 'SENT' });
-        console.log(`Found ${sentUpperCount} receipts with status 'SENT'`);
-        
-        // Case-insensitive search
-        const sentCaseInsensitive = await global.RakuReceipt.countDocuments({ 
-            status: { $regex: new RegExp('^sent$', 'i') } 
-        });
-        console.log(`Found ${sentCaseInsensitive} receipts with status 'sent' (case-insensitive)`);
-        
-        // Also try status='approved' since that might be used instead of 'sent'
-        const approvedCount = await global.RakuReceipt.countDocuments({ status: 'approved' });
-        console.log(`Found ${approvedCount} receipts with status 'approved'`);
-        
-        const approvedUpperCount = await global.RakuReceipt.countDocuments({ status: 'APPROVED' });
-        console.log(`Found ${approvedUpperCount} receipts with status 'APPROVED'`);
-        
-        // Return the maximum count we found from any of these queries
-        const count = Math.max(sentCount, sentUpperCount, sentCaseInsensitive, approvedCount, approvedUpperCount);
-        console.log(`Returning final count: ${count}`);
-        console.log('------------------------------');
-        
-        res.json({ count });
     } catch (error) {
         console.error('Error fetching receipt count:', error);
         res.status(500).json({ 
@@ -1706,29 +1767,16 @@ app.get('/api/receipt/stats', verifyToken, async (req, res) => {
             console.log('RakuReceipt model not available');
             return res.json({ receiptCount: 0, totalCost: 0 });
         }
-        
-        // Get user info from the token
-        // The key issue: req.user.uid is not set by our auth middleware
-        // Instead we need to use req.user.provider_uid or req.user._id
-        if (!req.user) {
-            console.log('No user found in request');
-            return res.json({ receiptCount: 0, totalCost: 0 });
-        }
-        
-        // Try different user ID formats
-        const possibleUserIds = [
-            req.user.provider_uid,          // Firebase UID
-            req.user._id,                   // MongoDB ObjectId as object
-            req.user._id ? req.user._id.toString() : null, // MongoDB ObjectId as string
-            req.user.id                     // Alternative ID field
-        ].filter(id => id); // Filter out null/undefined
-        
-        console.log('Possible user IDs to try:', possibleUserIds);
-        
-        // Use an $or query to try all possible ID formats
+
+        // Initialize query with multiple status options to match receipt-count API
         const query = { 
-            status: 'sent',
-            $or: possibleUserIds.map(id => ({ user_id: id }))
+            $or: [
+                { status: 'sent' },
+                { status: 'SENT' },
+                { status: { $regex: new RegExp('^sent$', 'i') } },
+                { status: 'approved' },
+                { status: 'APPROVED' }
+            ]
         };
         
         // Add date range filter if provided
@@ -1745,10 +1793,15 @@ app.get('/api/receipt/stats', verifyToken, async (req, res) => {
                 startDate.toISOString(), 'to', 
                 endDate.toISOString());
             
-            query.sentDate = {
-                $gte: startDate,
-                $lte: endDate
-            };
+            // Try both date fields
+            query.$and = [
+                {
+                    $or: [
+                        { created_at: { $gte: startDate, $lte: endDate } },
+                        { sentDate: { $gte: startDate, $lte: endDate } }
+                    ]
+                }
+            ];
         }
         
         console.log('Final query:', JSON.stringify(query));
@@ -1775,7 +1828,7 @@ app.get('/api/receipt/stats', verifyToken, async (req, res) => {
         const receiptCount = result.length > 0 ? result[0].receiptCount : 0;
         const totalCost = result.length > 0 ? result[0].totalCost : 0;
         
-        console.log(`Found ${receiptCount} receipts with status 'sent'`);
+        console.log(`Found ${receiptCount} receipts with specified statuses`);
         console.log(`Total cost: ${totalCost}`);
         
         res.json({

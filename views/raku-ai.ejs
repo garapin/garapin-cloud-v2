@@ -491,10 +491,11 @@
                     }
                 }
                 
-                // Fetch the receipt count from the API
-                const today = new Date();
-                const formattedDate = today.toISOString().split('T')[0]; // Format as YYYY-MM-DD
-                const receiptResponse = await fetch(`/api/raku-ai/receipt-count?start=${formattedDate}&end=${formattedDate}`, {
+                // Fetch the receipt count from the API using the date range picker's date
+                // Use moment.js for consistent date formatting across the application
+                const today = moment().utcOffset('+07:00').format('YYYY-MM-DD');
+                
+                const receiptResponse = await fetch(`/api/raku-ai/receipt-count?start=${today}&end=${today}&timezone=%2B07:00`, {
                     headers: {
                         'Authorization': `Bearer ${token}`
                     }
@@ -507,6 +508,7 @@
                     if (receiptData && receiptData.count !== undefined) {
                         document.getElementById('receiptCount').textContent = receiptData.count.toString();
                     } else {
+                        console.error('[raku-ai.ejs] Missing count in response:', receiptData);
                         document.getElementById('receiptCount').textContent = '0';
                     }
                 } else {
@@ -895,15 +897,15 @@
                         showDropdowns: true,
                         alwaysShowCalendars: true,
                         ranges: {
-                           'Today': [moment(), moment()],
-                           'Yesterday': [moment().subtract(1, 'days'), moment().subtract(1, 'days')],
-                           'Last 7 Days': [moment().subtract(6, 'days'), moment()],
-                           'Last 30 Days': [moment().subtract(29, 'days'), moment()],
-                           'This Month': [moment().startOf('month'), moment().endOf('month')],
-                           'Last Month': [moment().subtract(1, 'month').startOf('month'), moment().subtract(1, 'month').endOf('month')]
+                           'Today': [moment().utcOffset('+07:00'), moment().utcOffset('+07:00')],
+                           'Yesterday': [moment().utcOffset('+07:00').subtract(1, 'days'), moment().utcOffset('+07:00').subtract(1, 'days')],
+                           'Last 7 Days': [moment().utcOffset('+07:00').subtract(6, 'days'), moment().utcOffset('+07:00')],
+                           'Last 30 Days': [moment().utcOffset('+07:00').subtract(29, 'days'), moment().utcOffset('+07:00')],
+                           'This Month': [moment().utcOffset('+07:00').startOf('month'), moment().utcOffset('+07:00').endOf('month')],
+                           'Last Month': [moment().utcOffset('+07:00').subtract(1, 'month').startOf('month'), moment().utcOffset('+07:00').subtract(1, 'month').endOf('month')]
                         },
-                        startDate: moment(),
-                        endDate: moment(),
+                        startDate: moment().utcOffset('+07:00'),
+                        endDate: moment().utcOffset('+07:00'),
                         locale: {
                             format: 'DD MMM YYYY',
                             separator: ' - ',
@@ -923,6 +925,9 @@
                     const startDate = moment().format('DD MMM YYYY');
                     const endDate = moment().format('DD MMM YYYY');
                     $('#statusDateRangePicker').val(`${startDate} - ${endDate}`);
+                    
+                    // Call updateStatistics immediately with today's date to make sure the count is in sync
+                    updateStatistics(moment().format('YYYY-MM-DD'), moment().format('YYYY-MM-DD'));
                     
                     // Event handler when date range is applied
                     $('#statusDateRangePicker').on('apply.daterangepicker', function(ev, picker) {
@@ -949,8 +954,8 @@
 
                 const token = await user.getIdToken();
                 
-                // Update the receipt count based on the date range
-                const receiptResponse = await fetch(`/api/raku-ai/receipt-count?start=${startDate}&end=${endDate}`, {
+                // Update the receipt count based on the date range - FIX: ensure proper +07:00 format with no spaces
+                const receiptResponse = await fetch(`/api/raku-ai/receipt-count?start=${startDate}&end=${endDate}&timezone=%2B07:00`, {
                     headers: {
                         'Authorization': `Bearer ${token}`
                     }
@@ -963,13 +968,16 @@
                     if (receiptData && receiptData.count !== undefined) {
                         document.getElementById('receiptCount').textContent = receiptData.count.toString();
                     } else {
-                        console.error('Failed to fetch receipt count for date range');
+                        console.error('[raku-ai.ejs] Missing count in response:', receiptData);
+                        document.getElementById('receiptCount').textContent = '0';
                     }
                 } else {
-                    console.error('Failed to fetch receipt count for date range');
+                    console.error('[raku-ai.ejs] Failed to fetch receipt count for date range');
+                    document.getElementById('receiptCount').textContent = '0';
                 }
             } catch (error) {
-                console.error('Error updating statistics:', error);
+                console.error('[raku-ai.ejs] Error updating statistics:', error);
+                document.getElementById('receiptCount').textContent = '0';
             }
         }
     </script>
