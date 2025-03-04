@@ -27,6 +27,8 @@ const applicationController = require('./controllers/backend/applications-backen
 const baseImageController = require('./controllers/backend/base-images-backend');
 const receiptRoutes = require('./controllers/receiptAI');
 const paymentRoutes = require('./routes/payments');
+const PublicApiKey = require('./models/PublicApiKey');
+const GlobalPrice = require('./models/GlobalPrice');
 
 const app = express();
 
@@ -713,6 +715,32 @@ app.post('/auth/user', verifyToken, async (req, res) => {
                     last_login_at: new Date()
                 });
                 console.log('Created new user:', { id: user._id, email: user.email, name: user.name });
+                
+                // Fetch and copy price data from global_price collection
+                try {
+                    console.log('Fetching global price data for new user...');
+                    const globalPrice = await GlobalPrice.findOne({ price_object: "raku" });
+                    
+                    if (globalPrice && globalPrice.price) {
+                        console.log('Found global price data:', globalPrice.price);
+                        
+                        // Update user with price data
+                        await User.findByIdAndUpdate(user._id, {
+                            price: {
+                                marp: globalPrice.price.marp,
+                                ordr: globalPrice.price.ordr,
+                                pros: globalPrice.price.pros,
+                                rece: globalPrice.price.rece
+                            }
+                        });
+                        
+                        console.log('Copied price data to user:', user._id);
+                    } else {
+                        console.log('No global price data found with price_object = "raku"');
+                    }
+                } catch (priceError) {
+                    console.error('Error copying price data to user:', priceError);
+                }
             } else {
                 // Update existing user with all fields
                 const updates = {

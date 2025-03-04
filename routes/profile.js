@@ -22,9 +22,9 @@ const firebaseConfig = {
 router.get('/api-keys', verifyToken, async (req, res) => {
     console.log('GET /api-keys endpoint hit');
     try {
-        console.log('Fetching API keys for user:', req.user.provider_uid);
+        console.log('Fetching API keys for user:', req.user._id);
         
-        const apiKeys = await PublicApiKey.find({ provider_uid: req.user.provider_uid })
+        const apiKeys = await PublicApiKey.find({ user_id: req.user._id })
             .sort({ created_at: -1 });
 
         console.log('Found API keys:', apiKeys.length);
@@ -66,7 +66,7 @@ router.post('/api-keys', verifyToken, async (req, res) => {
 
         // Check if name already exists for this user
         const existingKey = await PublicApiKey.findOne({ 
-            provider_uid: req.user.provider_uid,
+            user_id: req.user._id,
             name: name 
         });
 
@@ -123,7 +123,7 @@ router.put('/api-keys/:id/disable', verifyToken, async (req, res) => {
         const apiKey = await PublicApiKey.findOneAndUpdate(
             { 
                 _id: req.params.id,
-                provider_uid: req.user.provider_uid
+                user_id: req.user._id
             },
             { 
                 status: 'disabled',

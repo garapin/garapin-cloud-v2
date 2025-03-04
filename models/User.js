@@ -23,6 +23,12 @@ const userSchema = new mongoose.Schema({
     phone_number: { type: String },
     web_address: { type: String },
     amount: { type: Number, default: 0 },
+    price: {
+        marp: { type: Number },
+        ordr: { type: Number },
+        pros: { type: Number },
+        rece: { type: Number }
+    },
     created_at: { type: Date, default: Date.now },
     updated_at: { type: Date, default: Date.now }
 }, {
