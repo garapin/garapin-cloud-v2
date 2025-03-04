@@ -1890,83 +1890,56 @@ app.get('/api/receipt/application-info', verifyToken, requireRakuAIApproval, asy
 // Add endpoint to get receipt statistics
 app.get('/api/receipt/stats', verifyToken, requireRakuAIApproval, async (req, res) => {
     try {
-        console.log('Fetching receipt statistics');
-        console.log('Date range:', req.query.start, 'to', req.query.end);
-        console.log('User ID:', req.user._id, 'Provider UID:', req.user.provider_uid);
-        
         if (!global.RakuReceipt) {
-            console.log('RakuReceipt model not available');
             return res.json({ receiptCount: 0, totalCost: 0 });
         }
-
-        // Initialize query with multiple status options to match receipt-count API
+        
+        // Build a simple query with just user_id
         const query = { 
-            $or: [
-                { status: 'sent' },
-                { status: 'SENT' },
-                { status: { $regex: new RegExp('^sent$', 'i') } },
-                { status: 'approved' },
-                { status: 'APPROVED' }
-            ],
-            // Use the MongoDB _id from the users collection instead of provider_uid
-            user_id: req.user._id.toString()
+            user_id: req.user._id.toString() 
         };
         
         // Add date range filter if provided
         if (req.query.start && req.query.end) {
-            // Set the start date to the beginning of the day (00:00:00)
+            // Set the start date to the beginning of the day (00:00:00) in UTC+7
             const startDate = new Date(req.query.start);
-            startDate.setUTCHours(0, 0, 0, 0);
+            startDate.setHours(0, 0, 0, 0);
+            // Adjust for UTC+7 (subtract 7 hours to convert to UTC for storage)
+            startDate.setTime(startDate.getTime() - (7 * 60 * 60 * 1000));
             
-            // Set the end date to the end of the day (23:59:59.999)
+            // Set the end date to the end of the day (23:59:59.999) in UTC+7
             const endDate = new Date(req.query.end);
-            endDate.setUTCHours(23, 59, 59, 999);
-            
-            console.log('Modified date range:', 
-                startDate.toISOString(), 'to', 
-                endDate.toISOString());
+            endDate.setHours(23, 59, 59, 999);
+            // Adjust for UTC+7
+            endDate.setTime(endDate.getTime() - (7 * 60 * 60 * 1000));
             
             // Try both date fields
-            query.$and = [
-                {
-                    $or: [
-                        { created_at: { $gte: startDate, $lte: endDate } },
-                        { sentDate: { $gte: startDate, $lte: endDate } }
-                    ]
-                }
+            query.$or = [
+                { created_at: { $gte: startDate, $lte: endDate } },
+                { sentDate: { $gte: startDate, $lte: endDate } }
             ];
         }
         
-        console.log('Final query:', JSON.stringify(query));
+        // Fetch all the receipts for this user directly
+        const allReceipts = await global.RakuReceipt.find(query).lean();
         
-        // For diagnostics: Check how many receipts exist in total with status 'sent'
-        const totalSentReceipts = await global.RakuReceipt.countDocuments({ 
-            status: 'sent',
-            user_id: req.user._id.toString() // Add user filter here too for more accurate diagnostics
-        });
-        console.log(`Total receipts with status 'sent' for user ${req.user._id}: ${totalSentReceipts}`);
+        // Process the receipt data in memory
+        let receiptCount = 0;
+        let totalCost = 0;
         
-        // Use aggregation to get both count and total cost in one query
-        const result = await global.RakuReceipt.aggregate([
-            { $match: query },
-            { 
-                $group: {
-                    _id: null,
-                    receiptCount: { $sum: 1 },
-                    totalCost: { $sum: { $ifNull: ["$price_rece", 0] } }
-                }
-            }
-        ]);
+        // If we have receipts, process them
+        if (allReceipts.length > 0) {
+            // Count receipts and sum price_rece values
+            receiptCount = allReceipts.length;
+            
+            // Sum the price_rece field, handling potential null/undefined values
+            totalCost = allReceipts.reduce((sum, receipt) => {
+                const price = receipt.price_rece || 0;
+                return sum + price;
+            }, 0);
+        }
         
-        console.log('Aggregation result:', result);
-        
-        // Extract the results or use defaults if no matching documents
-        const receiptCount = result.length > 0 ? result[0].receiptCount : 0;
-        const totalCost = result.length > 0 ? result[0].totalCost : 0;
-        
-        console.log(`Found ${receiptCount} receipts with specified statuses`);
-        console.log(`Total cost: ${totalCost}`);
-        
+        // Send the results back to the client
         res.json({
             receiptCount,
             totalCost

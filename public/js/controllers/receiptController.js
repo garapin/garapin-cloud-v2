@@ -82,7 +82,6 @@ document.addEventListener('DOMContentLoaded', function() {
         try {
             const user = firebase.auth().currentUser;
             if (!user) {
-                console.log('No user logged in for updateReceiptStats');
                 return;
             }
 
@@ -96,96 +95,83 @@ document.addEventListener('DOMContentLoaded', function() {
                 endDate = today.format('YYYY-MM-DD');
             }
             
-            console.log(`Fetching receipt stats for date range: ${startDate} to ${endDate}`);
-            
-            // Use the same API endpoint as raku-ai.ejs for receipt count calculation
-            const receiptCountUrl = `/api/raku-ai/receipt-count?start=${startDate}&end=${endDate}&timezone=%2B07:00`;
+            // Directly fetch the stats from the stats API to get accurate count and total cost
+            const statsUrl = `/api/receipt/stats?start=${startDate}&end=${endDate}`;
             
             try {
-                const receiptResponse = await fetch(receiptCountUrl, {
+                const statsResponse = await fetch(statsUrl, {
                     headers: {
                         'Authorization': `Bearer ${token}`
                     }
                 });
-
-                if (receiptResponse.ok) {
-                    const contentType = receiptResponse.headers.get('content-type');
+                
+                if (statsResponse.ok) {
+                    const contentType = statsResponse.headers.get('content-type');
                     
                     if (contentType && contentType.includes('application/json')) {
-                        const receiptData = await receiptResponse.json();
+                        const statsData = await statsResponse.json();
                         
-                        // Update receipt count - check both possible fields
-                        let receiptCount = 0;
-                        if (receiptData.count !== undefined) {
-                            receiptCount = receiptData.count;
-                        } else if (receiptData.receiptCount !== undefined) {
-                            receiptCount = receiptData.receiptCount;
-                        }
-                        
+                        // Update receipt count
+                        const receiptCount = statsData.receiptCount !== undefined ? statsData.receiptCount : 0;
                         document.getElementById('receiptsSent').textContent = receiptCount.toString();
-
-                        // Calculate the cost based on the actual number of receipts found
-                        // This matches how the stats endpoint calculates cost (1000 per receipt)
-                        const costPerReceipt = 1000; // Standard price per receipt
-                        const totalCost = receiptCount * costPerReceipt;
+                        
+                        // Update cost
+                        const totalCost = statsData.totalCost || 0;
                         document.getElementById('cost').textContent = formatCurrency(totalCost);
                         
-                        // Try to get more accurate cost data
-                        tryGetActualCostFromStats(startDate, endDate, token, receiptCount);
+                        // If both are 0, add a warning
+                        if (receiptCount === 0 && totalCost === 0) {
+                            // If there's a message from the server, show it as a tooltip
+                            if (statsData.message) {
+                                // Add tooltip to the receipts and cost elements
+                                const receiptsElement = document.getElementById('receiptsSent');
+                                const costElement = document.getElementById('cost');
+                                
+                                // Add a small info icon
+                                const infoIcon = document.createElement('i');
+                                infoIcon.className = 'bi bi-info-circle-fill ms-2';
+                                infoIcon.style.fontSize = '0.8rem';
+                                infoIcon.style.cursor = 'help';
+                                infoIcon.title = statsData.message;
+                                
+                                // Only add the icon once
+                                if (!receiptsElement.querySelector('.bi-info-circle-fill')) {
+                                    receiptsElement.appendChild(infoIcon.cloneNode(true));
+                                }
+                                
+                                // Create a small warning alert under the status card
+                                const statusCard = document.querySelector('.status-card');
+                                if (statusCard && !document.getElementById('receipt-alert')) {
+                                    const alertDiv = document.createElement('div');
+                                    alertDiv.id = 'receipt-alert';
+                                    alertDiv.className = 'alert alert-warning mt-2 mb-0 p-2';
+                                    alertDiv.style.fontSize = '0.8rem';
+                                    alertDiv.innerHTML = `<i class="bi bi-exclamation-triangle-fill"></i> ${statsData.message}`;
+                                    statusCard.parentNode.appendChild(alertDiv);
+                                }
+                            }
+                        } else {
+                            // Remove any existing alert if we have data
+                            const existingAlert = document.getElementById('receipt-alert');
+                            if (existingAlert) {
+                                existingAlert.remove();
+                            }
+                        }
                     } else {
-                        console.error('Receipt count response is not JSON');
                         document.getElementById('receiptsSent').textContent = '0';
                         document.getElementById('cost').textContent = formatCurrency(0);
                     }
                 } else {
-                    console.error(`Failed to fetch receipt count: ${receiptResponse.status}`);
                     document.getElementById('receiptsSent').textContent = '0';
                     document.getElementById('cost').textContent = formatCurrency(0);
                 }
             } catch (error) {
-                console.error('Error in receipt count function:', error);
                 document.getElementById('receiptsSent').textContent = '0';
                 document.getElementById('cost').textContent = formatCurrency(0);
             }
         } catch (error) {
-            console.error('Error updating receipt stats:', error);
             document.getElementById('receiptsSent').textContent = '0';
             document.getElementById('cost').textContent = formatCurrency(0);
-        }
-    }
-
-    // Function to try getting actual cost from stats API (optional, only for accurate cost)
-    async function tryGetActualCostFromStats(startDate, endDate, token, receiptCount) {
-        try {
-            const statsUrl = `/api/receipt/stats?start=${startDate}&end=${endDate}`;
-            
-            const statsResponse = await fetch(statsUrl, {
-                headers: {
-                    'Authorization': `Bearer ${token}`
-                }
-            });
-
-            if (statsResponse.ok) {
-                const contentType = statsResponse.headers.get('content-type');
-                
-                if (contentType && contentType.includes('application/json')) {
-                    const statsData = await statsResponse.json();
-                    
-                    // Calculate correct cost based on the receipt count 
-                    // from the more accurate receipt-count endpoint
-                    const costPerReceipt = statsData.totalCost && statsData.receiptCount ? 
-                        statsData.totalCost / statsData.receiptCount : 1000;
-                    
-                    // Apply the cost per receipt to the accurate count
-                    const totalCost = receiptCount * costPerReceipt;
-                    
-                    document.getElementById('cost').textContent = formatCurrency(totalCost);
-                    return;
-                }
-            }
-        } catch (error) {
-            console.error('Error calling stats API for cost:', error);
-            // We already have fallback cost set, so no action needed
         }
     }
 
@@ -282,4 +268,4 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // No need to call loadApplicationData() directly - the auth state change handler will handle it
-}); 
+});
