@@ -1894,9 +1894,10 @@ app.get('/api/receipt/stats', verifyToken, requireRakuAIApproval, async (req, re
             return res.json({ receiptCount: 0, totalCost: 0 });
         }
         
-        // Build a simple query with just user_id
+        // Build query with user_id and status='sent'
         const query = { 
-            user_id: req.user._id.toString() 
+            user_id: req.user._id.toString(),
+            status: { $regex: /^sent$/i }  // Case-insensitive match for 'sent'
         };
         
         // Add date range filter if provided
