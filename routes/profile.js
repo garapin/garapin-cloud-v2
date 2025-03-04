@@ -391,6 +391,22 @@ router.post('/save', async (req, res) => {
                         runValidators: true
                     }
                 );
+                
+                // Add this code to ensure user profile reference is updated even when updating
+                // Check if user needs profile reference update
+                if (!user.profile) {
+                    console.log('Updating user profile reference for existing profile...');
+                    await User.findByIdAndUpdate(
+                        user._id,
+                        { profile: profile._id }
+                    );
+                    
+                    // Update session with new user data if it exists
+                    if (req.session && req.session.user) {
+                        const updatedUser = await User.findById(user._id);
+                        req.session.user = updatedUser;
+                    }
+                }
             } else {
                 console.log('Creating new profile with data:', profileData);
                 profile = new Profile(profileData);
@@ -414,6 +430,16 @@ router.post('/save', async (req, res) => {
             // Fetch the fresh profile data to ensure we have the latest
             const savedProfile = await Profile.findById(profile._id);
             console.log('Fresh profile data:', savedProfile);
+
+            // Ensure user record has profile reference - add this code
+            const userCheck = await User.findOne({ provider_uid: decodedToken.uid });
+            if (!userCheck.profile) {
+                console.log('User still missing profile reference, fixing...');
+                await User.findByIdAndUpdate(
+                    userCheck._id,
+                    { profile: profile._id }
+                );
+            }
 
             res.json({
                 success: true,

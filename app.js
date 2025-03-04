@@ -534,17 +534,38 @@ app.post('/api/payment/callback', async (req, res) => {
 app.use('/profile', profileRoutes);
 
 // Updated redirect middleware: Only act on GET requests for a logged-in user missing a profile
-app.use((req, res, next) => {
+app.use(async (req, res, next) => {
     if (req.method === 'GET' && req.user && !req.user.profile &&
         !req.path.startsWith('/profile') &&
         !req.path.startsWith('/auth') &&
         !req.path.startsWith('/api')) {
-        if (req.xhr) {
-            console.log('XHR GET request: User profile missing; sending JSON error');
-            return res.status(403).json({ error: 'User profile required. Please create your profile.' });
-        } else {
-            console.log('Full-page GET request: Redirecting to /profile');
-            return res.redirect('/profile');
+        
+        console.log('Profile middleware check for user:', req.user._id, 'Provider UID:', req.user.provider_uid);
+        
+        try {
+            // Check if the profile actually exists in the database
+            const profileExists = await Profile.findOne({ provider_uid: req.user.provider_uid });
+            
+            if (profileExists) {
+                console.log('Profile exists in database but not linked to user. Fixing and continuing...');
+                // Update the user record to link to this profile
+                await User.findByIdAndUpdate(req.user._id, { profile: profileExists._id });
+                // Continue to the requested page
+                return next();
+            }
+            
+            // No profile found, redirect to profile page
+            if (req.xhr) {
+                console.log('XHR GET request: User profile missing; sending JSON error');
+                return res.status(403).json({ error: 'User profile required. Please create your profile.' });
+            } else {
+                console.log('Full-page GET request: Redirecting to /profile');
+                return res.redirect('/profile');
+            }
+        } catch (error) {
+            console.error('Error checking profile:', error);
+            // In case of error, continue to avoid blocking the user
+            return next();
         }
     }
     next();
