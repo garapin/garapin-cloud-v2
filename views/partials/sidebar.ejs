@@ -85,10 +85,20 @@
                 <div class="collapse <%= /^raku-ai/.test(currentPage) ? 'show' : '' %>" id="rakuAiSubmenu">
                     <ul class="nav flex-column ms-3">
                         <li class="nav-item">
-                            <a class="nav-link <%= currentPage === 'raku-ai-receipt' ? 'active' : '' %>" href="/raku-ai/receipt">
-                                <i class="bi bi-receipt"></i>
-                                Receipt
-                            </a>
+                            <% if (typeof raku_ai_approved !== 'undefined' && raku_ai_approved === true) { %>
+                                <a class="nav-link <%= currentPage === 'raku-ai-receipt' ? 'active' : '' %>" href="/raku-ai/receipt">
+                                    <i class="bi bi-receipt"></i>
+                                    Receipt
+                                </a>
+                            <% } else { %>
+                                <a class="nav-link disabled" href="#">
+                                    <div class="menu-item">
+                                        <i class="bi bi-receipt"></i>
+                                        Receipt
+                                    </div>
+                                    <span class="coming-soon">(Approval Required)</span>
+                                </a>
+                            <% } %>
                         </li>
                         <li class="nav-item">
                             <a class="nav-link disabled" href="#">

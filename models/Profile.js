@@ -52,14 +52,42 @@ const profileSchema = new mongoose.Schema({
     raku_ai: {
         app_name: String,
         business_type: String,
+        application_type: String,
+        app_description: String,
         platform: String,
+        app_link: String,
         status: String,
+        user_agreement: Boolean,
+        requested_at: Date,
+        updated_at: Date,
         features: {
             receipt: {
                 selected: {
                     type: Boolean,
                     default: false
-                }
+                },
+                implementation_plan: String
+            },
+            marketing_promotion: {
+                selected: {
+                    type: Boolean,
+                    default: false
+                },
+                implementation_plan: String
+            },
+            product_service: {
+                selected: {
+                    type: Boolean,
+                    default: false
+                },
+                implementation_plan: String
+            },
+            order_reservation: {
+                selected: {
+                    type: Boolean,
+                    default: false
+                },
+                implementation_plan: String
             }
         }
     },

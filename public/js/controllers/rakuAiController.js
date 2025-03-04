@@ -1,6 +1,4 @@
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('RakuAiController initializing...');
-
     // Initialize Firebase if needed
     try {
         const firebaseConfig = JSON.parse(document.querySelector('[data-firebase-config]').dataset.firebaseConfig);
@@ -17,7 +15,6 @@ document.addEventListener('DOMContentLoaded', function() {
     if (tambahSaldoBtn) {
         tambahSaldoBtn.addEventListener('click', function() {
             // TODO: Implement top-up functionality
-            console.log('Tambah Saldo clicked');
         });
     }
 }); 

@@ -43,6 +43,20 @@
             <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 bg-light">
                 <%- include('partials/header', {pageTitle: 'Raku AI'}) %>
 
+                <!-- Error Messages -->
+                <% if (typeof query !== 'undefined' && query.error) { %>
+                    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                        <% if (query.error === 'approval_required') { %>
+                            <strong>Access Denied:</strong> You need an approved Raku AI account to access this feature.
+                        <% } else if (query.error === 'server_error') { %>
+                            <strong>System Error:</strong> An error occurred while checking your access permissions. Please try again later.
+                        <% } else { %>
+                            <strong>Error:</strong> <%= query.error %>
+                        <% } %>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                <% } %>
+
                 <!-- Raku AI content -->
                 <div class="row g-4">
                     <!-- Balance Card -->
@@ -52,8 +66,13 @@
                                 <h5 class="card-title mb-3" style="color: #ffffff; font-weight: normal;">Saldo</h5>
                                 <h2 class="card-text mb-4" style="font-size: 3.5rem;" id="userSaldoDisplay">Loading...</h2>
                                 <div class="d-flex mt-auto">
-                                    <a href="/raku-ai/tambah-saldo" class="btn btn-primary me-2" style="width: 80%;">Tambah Saldo</a>
-                                    <a href="/raku-ai/history" class="btn btn-outline-light" style="width: 20%;">History</a>
+                                    <% if (typeof raku_ai_approved !== 'undefined' && raku_ai_approved === true) { %>
+                                        <a href="/raku-ai/tambah-saldo" class="btn btn-primary me-2" style="width: 80%;">Tambah Saldo</a>
+                                        <a href="/raku-ai/history" class="btn btn-outline-light" style="width: 20%;">History</a>
+                                    <% } else { %>
+                                        <button class="btn btn-secondary me-2" style="width: 80%;" disabled title="Approval Required">Tambah Saldo</button>
+                                        <button class="btn btn-outline-secondary" style="width: 20%;" disabled title="Approval Required">History</button>
+                                    <% } %>
                                 </div>
                             </div>
                         </div>
@@ -219,30 +238,76 @@
 
                                     <!-- Terms and Agreement -->
                                     <div class="mb-4">
-                                        <div class="terms-box p-3 mb-3 bg-light" style="height: 200px; overflow-y: auto;">
-                                            <h6>Syarat dan Ketentuan</h6>
+                                        <div class="terms-box p-3 mb-3 bg-light" style="height: 400px; overflow-y: auto;">
+                                            <h6>Syarat dan Ketentuan Penggunaan Raku AI - WhatsApp Integration</h6>
                                             <p>1. Penggunaan Layanan</p>
                                             <ul>
-                                                <li>Anda setuju untuk menggunakan Raku AI hanya untuk keperluan bisnis yang sah.</li>
-                                                <li>Anda tidak akan menggunakan layanan untuk tujuan ilegal atau tidak sah.</li>
-                                                <li>Anda bertanggung jawab untuk menjaga keamanan akun Anda.</li>
+                                                <li>Dengan menggunakan layanan Raku AI - WhatsApp Integration, Anda setuju untuk menggunakan layanan ini hanya untuk keperluan bisnis yang sah dan sesuai dengan peraturan perundang-undangan yang berlaku.​</li>
+                                                <li>Anda tidak diperkenankan menggunakan layanan ini untuk aktivitas yang ilegal, tidak sah, atau bertentangan dengan kebijakan WhatsApp.​</li>
+                                                <li>Anda bertanggung jawab penuh atas keamanan akun dan kredensial akses Anda.​</li>
+                                                <li>Pengguna dilarang menyalahgunakan integrasi WhatsApp ini untuk melakukan WA Blast atau pengiriman pesan massal yang tidak sesuai dengan kebijakan WhatsApp.​</li>
+                                                <li>Anda tidak diperkenankan mengirim pesan yang menyesatkan, menipu, atau melanggar hak kekayaan intelektual pihak ketiga.​</li>
+                                                <li>Anda tidak diperkenankan menggunakan layanan ini untuk aktivitas yang dapat merugikan, mengancam, atau melecehkan individu atau kelompok tertentu.​</li>
                                             </ul>
-                                            <p>2. Data Privacy</p>
+                                            <p>2. Privasi dan Data</p>
                                             <ul>
-                                                <li>Anda memberikan izin kepada Raku AI untuk memproses data aplikasi Anda.</li>
-                                                <li>Kami akan melindungi data Anda sesuai dengan privacy policy kami.</li>
-                                                <li>Anda tetap memiliki kepemilikan atas semua data Anda.</li>
+                                                <li>Anda memberikan izin kepada Raku AI untuk memproses data yang terkait dengan integrasi WhatsApp Anda sesuai dengan kebutuhan layanan.​</li>
+                                                <li>Kami berkomitmen untuk melindungi dan menjaga kerahasiaan data Anda sesuai dengan kebijakan privasi kami.​</li>
+                                                <li>Anda tetap memiliki kepemilikan penuh atas data yang Anda kelola melalui layanan ini.​</li>
+                                                <li>Anda harus memastikan bahwa Anda memiliki semua izin dan persetujuan yang diperlukan dari pengguna akhir sebelum mengumpulkan, menggunakan, atau membagikan informasi mereka.​</li>
                                             </ul>
-                                            <p>3. Service Availability</p>
+                                            <p>3. Ketersediaan Layanan</p>
                                             <ul>
-                                                <li>Kami berusaha untuk menjaga uptime layanan 99.9%.</li>
-                                                <li>Kami berhak untuk memodifikasi atau menghentikan layanan dengan pemberitahuan.</li>
+                                                <li>Kami berusaha untuk menjaga ketersediaan layanan sebaik mungkin, namun tidak dapat menjamin uptime 100%.​</li>
+                                                <li>Raku AI berhak untuk melakukan perubahan, pemeliharaan, atau penghentian layanan dengan pemberitahuan sebelumnya.​</li>
                                             </ul>
-                                            <p>4. Pembayaran dan Billing</p>
+                                            <p>4. Biaya dan Pembayaran</p>
                                             <ul>
-                                                <li>Penggunaan di atas batas free tier akan dikenakan biaya sesuai pricing kami.</li>
-                                                <li>Anda setuju untuk membayar semua biaya yang berlaku tepat waktu.</li>
+                                                <li>Pengguna diwajibkan untuk melakukan top-up kredit untuk menggunakan layanan ini.​</li>
+                                                <li>Anda setuju untuk melakukan pembayaran atas layanan yang digunakan sesuai dengan metode dan jadwal yang telah ditentukan.​</li>
+                                                <li>Kegagalan dalam melakukan pembayaran dapat mengakibatkan penghentian sementara atau permanen atas akses layanan.​</li>
                                             </ul>
+                                            <p>5. Batasan Tanggung Jawab</p>
+                                            <ul>
+                                                <li>Raku AI tidak bertanggung jawab atas kerugian yang timbul akibat penyalahgunaan layanan oleh pengguna.​</li>
+                                                <li>Kami tidak menjamin bahwa layanan akan selalu bebas dari kesalahan atau gangguan teknis yang mungkin terjadi.​</li>
+                                                <li>Pengguna bertanggung jawab penuh atas konten yang disebarkan melalui layanan ini.​</li>
+                                                <li>Setiap aktivitas ilegal yang dilakukan oleh pengguna akan membebaskan Raku AI dari tuntutan hukum apa pun.​</li>
+                                            </ul>
+                                            <p>6. Perubahan Syarat dan Ketentuan</p>
+                                            <ul>
+                                                <li>Kami dapat memperbarui Syarat dan Ketentuan ini sewaktu-waktu. Perubahan akan diberitahukan melalui saluran komunikasi resmi kami.​</li>
+                                                <li>Dengan terus menggunakan layanan setelah perubahan diberlakukan, Anda dianggap menyetujui Syarat dan Ketentuan yang diperbarui.​</li>
+                                            </ul>
+                                            <p>7. Kepatuhan terhadap Kebijakan WhatsApp</p>
+                                            <ul>
+                                                <li>Anda setuju untuk mematuhi semua kebijakan dan pedoman resmi WhatsApp, termasuk namun tidak terbatas pada:​</li>
+                                                <li>Kebijakan Perdagangan WhatsApp: Tidak menggunakan layanan untuk mempromosikan atau menjual produk atau layanan yang dilarang oleh kebijakan WhatsApp, seperti:​
+                                                    <ul>
+                                                        <li>Produk tembakau dan perlengkapannya</li>
+                                                        <li>Obat-obatan terlarang atau obat resep tanpa izin</li>
+                                                        <li>Alkohol</li>
+                                                        <li>Suplemen yang tidak aman</li>
+                                                        <li>Senjata, amunisi, atau bahan peledak</li>
+                                                        <li>Hewan</li>
+                                                        <li>Produk atau layanan untuk dewasa</li>
+                                                        <li>Bagian tubuh atau cairan tubuh manusia</li>
+                                                        <li>Produk perawatan kesehatan dan medis tertentu</li>
+                                                        <li>Barang atau produk yang menggambarkan aktivitas seksual secara eksplisit</li>
+                                                        <li>Layanan perjudian dengan uang nyata</li>
+                                                        <li>Layanan kencan</li>
+                                                        <li>Produk atau item yang memfasilitasi atau mendorong akses tidak sah ke media digital</li>
+                                                    </ul>
+                                                </li>
+                                                <li>Kebijakan Pesan Bisnis WhatsApp: Mengirim pesan yang sesuai dengan pedoman konten dan tidak melanggar kebijakan pesan bisnis WhatsApp.​</li>
+                                                <li>Kebijakan Anti-Spam: Tidak mengirim pesan spam atau pesan yang tidak diinginkan kepada pengguna tanpa persetujuan mereka.​</li>
+                                            </ul>
+                                            <p>8. Penegakan Kebijakan dan Penghentian Layanan</p>
+                                            <ul>
+                                                <li>Raku AI berhak untuk menghapus atau menghentikan akses pengguna yang terlibat dalam aktivitas ilegal atau aktivitas lain yang tidak sesuai dengan kebijakan perusahaan.​</li>
+                                                <li>Kami dapat membatasi atau menghapus akses atau penggunaan Anda terhadap layanan jika Anda menerima banyak masukan negatif, menimbulkan kerugian pada WhatsApp atau pengguna kami, melanggar atau mendorong orang lain untuk melanggar ketentuan atau kebijakan kami, atau untuk mempertahankan pengalaman berkualitas tinggi di WhatsApp.​</li>
+                                            </ul>
+                                            <p>Dengan menggunakan layanan Raku AI - WhatsApp Integration, Anda menyatakan telah membaca, memahami, dan menyetujui seluruh Syarat dan Ketentuan ini.​</p>
                                         </div>
                                         <div class="form-check">
                                             <input class="form-check-input" type="checkbox" id="agreeTerms" required>
@@ -433,7 +498,20 @@
             // Set features and show implementation plans
             if (data.features) {
                 Object.entries(data.features).forEach(([feature, details]) => {
-                    const checkboxId = feature.replace(/_/g, '') + 'Check';
+                    // Map database feature names to checkbox IDs
+                    let checkboxId;
+                    if (feature === 'receipt') {
+                        checkboxId = 'receiptCheck';
+                    } else if (feature === 'marketing_promotion') {
+                        checkboxId = 'marketingCheck';
+                    } else if (feature === 'product_service') {
+                        checkboxId = 'productCheck';
+                    } else if (feature === 'order_reservation') {
+                        checkboxId = 'orderCheck';
+                    } else {
+                        checkboxId = feature.replace(/_/g, '') + 'Check';
+                    }
+                    
                     const checkbox = document.getElementById(checkboxId);
                     if (checkbox && details.selected) {
                         checkbox.checked = true;
@@ -450,8 +528,13 @@
                 });
             }
 
-            // Set terms checkbox
-            document.getElementById('agreeTerms').checked = true;
+            // Do NOT set Terms and Conditions checkbox as checked by default
+            // document.getElementById('agreeTerms').checked = true;
+            
+            // However, if this is an existing submission with user_agreement set to true, check the box
+            if (data.user_agreement === true) {
+                document.getElementById('agreeTerms').checked = true;
+            }
 
             // If status is Requested, disable the form
             if (data.status === 'Requested') {
@@ -468,77 +551,109 @@
                 const token = await user.getIdToken();
                 
                 // First, get the user's amount from the users table
-                const userResponse = await fetch('/profile/user-data', {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
-                
-                if (userResponse.ok) {
-                    const userData = await userResponse.json();
+                try {
+                    const userResponse = await fetch('/profile/user-data', {
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        }
+                    });
                     
-                    // Update user's saldo display with amount from the users table
-                    if (userData && userData.amount !== undefined) {
-                        const formattedAmount = new Intl.NumberFormat('id-ID', {
-                            style: 'currency',
-                            currency: 'IDR',
-                            minimumFractionDigits: 0
-                        }).format(userData.amount);
-                        
-                        document.getElementById('userSaldoDisplay').textContent = formattedAmount;
+                    if (userResponse.ok) {
+                        // Check content type before parsing as JSON
+                        const contentType = userResponse.headers.get('content-type');
+                        if (contentType && contentType.includes('application/json')) {
+                            const userData = await userResponse.json();
+                            
+                            // Update user's saldo display with amount from the users table
+                            if (userData && userData.amount !== undefined) {
+                                const formattedAmount = new Intl.NumberFormat('id-ID', {
+                                    style: 'currency',
+                                    currency: 'IDR',
+                                    minimumFractionDigits: 0
+                                }).format(userData.amount);
+                                
+                                document.getElementById('userSaldoDisplay').textContent = formattedAmount;
+                            } else {
+                                document.getElementById('userSaldoDisplay').textContent = 'Rp.0';
+                            }
+                        } else {
+                            console.error('Response is not JSON:', await userResponse.text());
+                            document.getElementById('userSaldoDisplay').textContent = 'Rp.0';
+                        }
                     } else {
+                        console.error('Failed to fetch user data:', userResponse.status);
                         document.getElementById('userSaldoDisplay').textContent = 'Rp.0';
                     }
+                } catch (error) {
+                    document.getElementById('userSaldoDisplay').textContent = 'Rp.0';
                 }
                 
                 // Fetch the receipt count from the API using the date range picker's date
                 // Use moment.js for consistent date formatting across the application
-                const today = moment().utcOffset('+07:00').format('YYYY-MM-DD');
-                
-                const receiptResponse = await fetch(`/api/raku-ai/receipt-count?start=${today}&end=${today}&timezone=%2B07:00`, {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
-                
-                if (receiptResponse.ok) {
-                    const receiptData = await receiptResponse.json();
+                try {
+                    const today = moment().utcOffset('+07:00').format('YYYY-MM-DD');
                     
-                    // Update receipt count display
-                    if (receiptData && receiptData.count !== undefined) {
-                        document.getElementById('receiptCount').textContent = receiptData.count.toString();
+                    const receiptResponse = await fetch(`/api/raku-ai/receipt-count?start=${today}&end=${today}&timezone=%2B07:00`, {
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        }
+                    });
+                    
+                    if (receiptResponse.ok) {
+                        const contentType = receiptResponse.headers.get('content-type');
+                        
+                        if (contentType && contentType.includes('application/json')) {
+                            const receiptData = await receiptResponse.json();
+                            
+                            // Update receipt count display - checking both possible response formats
+                            if (receiptData && receiptData.receiptCount !== undefined) {
+                                document.getElementById('receiptCount').textContent = receiptData.receiptCount.toString();
+                            } else if (receiptData && receiptData.count !== undefined) {
+                                document.getElementById('receiptCount').textContent = receiptData.count.toString();
+                            } else {
+                                document.getElementById('receiptCount').textContent = '0';
+                            }
+                        } else {
+                            document.getElementById('receiptCount').textContent = '0';
+                        }
                     } else {
-                        console.error('[raku-ai.ejs] Missing count in response:', receiptData);
                         document.getElementById('receiptCount').textContent = '0';
                     }
-                } else {
-                    console.error('Failed to fetch receipt count');
+                } catch (error) {
+                    console.error('Error fetching receipt count:', error);
                     document.getElementById('receiptCount').textContent = '0';
                 }
                 
                 // Then get the Raku AI request data
-                const response = await fetch('/profile/data', {
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
+                try {
+                    const response = await fetch('/profile/data', {
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        }
+                    });
 
-                if (response.ok) {
-                    const data = await response.json();
-                    
-                    if (data.raku_ai) {
-                        if (data.raku_ai.status === 'Approved') {
-                            // Change title and show approved view
-                            document.querySelector('.card-title').textContent = 'Raku AI General';
-                            document.getElementById('requestSection').classList.add('d-none');
-                            document.getElementById('mainContent').classList.remove('d-none');
-                        } else {
-                            populateForm(data.raku_ai);
-                            if (data.raku_ai.status === 'Requested') {
-                                disableForm();
+                    if (response.ok) {
+                        const contentType = response.headers.get('content-type');
+                        if (contentType && contentType.includes('application/json')) {
+                            const data = await response.json();
+                            
+                            if (data.raku_ai) {
+                                if (data.raku_ai.status === 'Approved') {
+                                    // Change title and show approved view
+                                    document.querySelector('.card-title').textContent = 'Raku AI General';
+                                    document.getElementById('requestSection').classList.add('d-none');
+                                    document.getElementById('mainContent').classList.remove('d-none');
+                                } else {
+                                    populateForm(data.raku_ai);
+                                    if (data.raku_ai.status === 'Requested') {
+                                        disableForm();
+                                    }
+                                }
                             }
                         }
                     }
+                } catch (error) {
+                    // Silent error handling
                 }
             } catch (error) {
                 console.error('Error checking existing request:', error);
@@ -572,10 +687,10 @@
 
                 const token = await user.getIdToken(true);
 
-                // Collect form data
+                // Collect form data - ensure application_type and user_agreement are properly included
                 const formData = {
                     business_type: document.getElementById('businessType').value,
-                    application_type: document.getElementById('applicationType').value,
+                    application_type: document.getElementById('applicationType').value, // This is the field for "Aplikasi apa yang Anda miliki?"
                     app_name: document.getElementById('appName').value,
                     app_description: document.getElementById('appDescription').value,
                     platform: document.querySelector('input[name="platform"]:checked').value,
@@ -603,7 +718,8 @@
                         }
                     },
                     status: 'Requested',
-                    requested_at: new Date().toISOString()
+                    requested_at: new Date().toISOString(),
+                    user_agreement: document.getElementById('agreeTerms').checked // Explicitly capture checkbox state
                 };
 
                 // Send the request to the server
@@ -627,7 +743,6 @@
                 alert('Permintaan Anda telah berhasil dikirim dan sedang dalam proses review.');
                 populateForm({ ...formData, status: 'Requested' });
             } catch (error) {
-                console.error('Error submitting request:', error);
                 alert(`Terjadi kesalahan saat mengirim permintaan: ${error.message}`);
             }
         });
@@ -962,21 +1077,27 @@
                 });
                 
                 if (receiptResponse.ok) {
-                    const receiptData = await receiptResponse.json();
+                    const contentType = receiptResponse.headers.get('content-type');
                     
-                    // Update receipt count display
-                    if (receiptData && receiptData.count !== undefined) {
-                        document.getElementById('receiptCount').textContent = receiptData.count.toString();
+                    if (contentType && contentType.includes('application/json')) {
+                        const receiptData = await receiptResponse.json();
+                        
+                        // Update receipt count display - checking both possible response formats
+                        if (receiptData && receiptData.receiptCount !== undefined) {
+                            document.getElementById('receiptCount').textContent = receiptData.receiptCount.toString();
+                        } else if (receiptData && receiptData.count !== undefined) {
+                            document.getElementById('receiptCount').textContent = receiptData.count.toString();
+                        } else {
+                            document.getElementById('receiptCount').textContent = '0';
+                        }
                     } else {
-                        console.error('[raku-ai.ejs] Missing count in response:', receiptData);
                         document.getElementById('receiptCount').textContent = '0';
                     }
                 } else {
-                    console.error('[raku-ai.ejs] Failed to fetch receipt count for date range');
                     document.getElementById('receiptCount').textContent = '0';
                 }
             } catch (error) {
-                console.error('[raku-ai.ejs] Error updating statistics:', error);
+                console.error('Error updating statistics:', error);
                 document.getElementById('receiptCount').textContent = '0';
             }
         }

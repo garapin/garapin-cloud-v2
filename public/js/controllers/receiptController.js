@@ -1,6 +1,6 @@
 document.addEventListener('DOMContentLoaded', function() {
     let datePickerInitialized = false;
-
+    
     // Initialize Firebase
     try {
         const firebaseConfig = JSON.parse(document.querySelector('[data-firebase-config]').dataset.firebaseConfig);
@@ -10,6 +10,12 @@ document.addEventListener('DOMContentLoaded', function() {
     } catch (error) {
         console.error('Firebase initialization error:', error);
         return;
+    }
+
+    // Check for approval overlay - if present, no need to proceed with data loading
+    const approvalRequired = document.querySelector('.approval-required-overlay');
+    if (approvalRequired) {
+        return; // Exit early, no need to load data if approval is required
     }
     
     // Function to format currency in Indonesian Rupiah
@@ -39,24 +45,23 @@ document.addEventListener('DOMContentLoaded', function() {
             });
 
             if (!appInfoResponse.ok) {
-                const errorText = await appInfoResponse.text();
-                console.error('API Error Response:', errorText);
                 throw new Error(`Failed to fetch application info: ${appInfoResponse.status}`);
             }
 
             const appData = await appInfoResponse.json();
             
             // Update application info from profile.raku_ai
-            document.getElementById('appName').textContent = appData.appName;
-            document.getElementById('appType').textContent = appData.appType;
-            document.getElementById('platform').textContent = appData.platform;
+            document.getElementById('appName').textContent = appData.appName || appData.app_name || '-';
+            document.getElementById('appType').textContent = appData.appType || appData.application_type || '-';
+            document.getElementById('platform').textContent = appData.platform || '-';
             
-            // Update status with proper styling
             const statusElement = document.getElementById('status');
-            statusElement.textContent = appData.status;
-            if (appData.status.toLowerCase() === 'approved') {
+            statusElement.textContent = appData.status || '-';
+            
+            // Update status color based on status
+            if (appData.status?.toLowerCase() === 'approved') {
                 statusElement.style.color = '#28a745'; // Green for approved
-            } else if (appData.status.toLowerCase() === 'pending') {
+            } else if (appData.status?.toLowerCase() === 'pending') {
                 statusElement.style.color = '#ffc107'; // Yellow for pending
             } else {
                 statusElement.style.color = '#dc3545'; // Red for other states
@@ -77,6 +82,7 @@ document.addEventListener('DOMContentLoaded', function() {
         try {
             const user = firebase.auth().currentUser;
             if (!user) {
+                console.log('No user logged in for updateReceiptStats');
                 return;
             }
 
@@ -90,36 +96,99 @@ document.addEventListener('DOMContentLoaded', function() {
                 endDate = today.format('YYYY-MM-DD');
             }
             
-            // Use the same API endpoint as raku-ai.ejs for consistency
-            const receiptCountUrl = `/api/raku-ai/receipt-count?start=${startDate}&end=${endDate}&timezone=+07:00`;
+            console.log(`Fetching receipt stats for date range: ${startDate} to ${endDate}`);
             
-            const receiptResponse = await fetch(receiptCountUrl, {
+            // Use the same API endpoint as raku-ai.ejs for receipt count calculation
+            const receiptCountUrl = `/api/raku-ai/receipt-count?start=${startDate}&end=${endDate}&timezone=%2B07:00`;
+            
+            try {
+                const receiptResponse = await fetch(receiptCountUrl, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                if (receiptResponse.ok) {
+                    const contentType = receiptResponse.headers.get('content-type');
+                    
+                    if (contentType && contentType.includes('application/json')) {
+                        const receiptData = await receiptResponse.json();
+                        
+                        // Update receipt count - check both possible fields
+                        let receiptCount = 0;
+                        if (receiptData.count !== undefined) {
+                            receiptCount = receiptData.count;
+                        } else if (receiptData.receiptCount !== undefined) {
+                            receiptCount = receiptData.receiptCount;
+                        }
+                        
+                        document.getElementById('receiptsSent').textContent = receiptCount.toString();
+
+                        // Calculate the cost based on the actual number of receipts found
+                        // This matches how the stats endpoint calculates cost (1000 per receipt)
+                        const costPerReceipt = 1000; // Standard price per receipt
+                        const totalCost = receiptCount * costPerReceipt;
+                        document.getElementById('cost').textContent = formatCurrency(totalCost);
+                        
+                        // Try to get more accurate cost data
+                        tryGetActualCostFromStats(startDate, endDate, token, receiptCount);
+                    } else {
+                        console.error('Receipt count response is not JSON');
+                        document.getElementById('receiptsSent').textContent = '0';
+                        document.getElementById('cost').textContent = formatCurrency(0);
+                    }
+                } else {
+                    console.error(`Failed to fetch receipt count: ${receiptResponse.status}`);
+                    document.getElementById('receiptsSent').textContent = '0';
+                    document.getElementById('cost').textContent = formatCurrency(0);
+                }
+            } catch (error) {
+                console.error('Error in receipt count function:', error);
+                document.getElementById('receiptsSent').textContent = '0';
+                document.getElementById('cost').textContent = formatCurrency(0);
+            }
+        } catch (error) {
+            console.error('Error updating receipt stats:', error);
+            document.getElementById('receiptsSent').textContent = '0';
+            document.getElementById('cost').textContent = formatCurrency(0);
+        }
+    }
+
+    // Function to try getting actual cost from stats API (optional, only for accurate cost)
+    async function tryGetActualCostFromStats(startDate, endDate, token, receiptCount) {
+        try {
+            const statsUrl = `/api/receipt/stats?start=${startDate}&end=${endDate}`;
+            
+            const statsResponse = await fetch(statsUrl, {
                 headers: {
                     'Authorization': `Bearer ${token}`
                 }
             });
 
-            if (receiptResponse.ok) {
-                const receiptData = await receiptResponse.json();
+            if (statsResponse.ok) {
+                const contentType = statsResponse.headers.get('content-type');
                 
-                // Update receipt count from the count field in the response
-                document.getElementById('receiptsSent').textContent = receiptData.count !== undefined ? receiptData.count.toString() : '0';
-                
-                // For cost, we'll use a fixed value per receipt
-                document.getElementById('cost').textContent = formatCurrency(receiptData.count * 1000); // Using price_rece value of 1000 per receipt
-            } else {
-                const errorText = await receiptResponse.text();
-                console.error('[receiptController.js] API Error Response for receipt stats:', errorText);
-                document.getElementById('receiptsSent').textContent = '0';
-                document.getElementById('cost').textContent = 'Rp0';
+                if (contentType && contentType.includes('application/json')) {
+                    const statsData = await statsResponse.json();
+                    
+                    // Calculate correct cost based on the receipt count 
+                    // from the more accurate receipt-count endpoint
+                    const costPerReceipt = statsData.totalCost && statsData.receiptCount ? 
+                        statsData.totalCost / statsData.receiptCount : 1000;
+                    
+                    // Apply the cost per receipt to the accurate count
+                    const totalCost = receiptCount * costPerReceipt;
+                    
+                    document.getElementById('cost').textContent = formatCurrency(totalCost);
+                    return;
+                }
             }
         } catch (error) {
-            console.error('[receiptController.js] Error updating receipt statistics:', error);
-            document.getElementById('receiptsSent').textContent = '0';
-            document.getElementById('cost').textContent = 'Rp0';
+            console.error('Error calling stats API for cost:', error);
+            // We already have fallback cost set, so no action needed
         }
     }
-    
+
     // Initialize date range picker
     function initDateRangePicker() {
         try {
@@ -172,7 +241,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 return true;
             } else {
-                console.error('jQuery or daterangepicker not available');
                 return false;
             }
         } catch (error) {
@@ -184,7 +252,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Handle Firebase auth state changes
     firebase.auth().onAuthStateChanged((user) => {
         if (user) {
-            // Initialize or refresh application data
+            // Initialize application data
             loadApplicationData();
             
             // Initialize date range picker if not already done
@@ -198,12 +266,20 @@ document.addEventListener('DOMContentLoaded', function() {
             updateReceiptStats(today, today);
             
         } else {
+            // If user is logged out, clear the UI
             document.getElementById('appName').textContent = '-';
             document.getElementById('appType').textContent = '-';
             document.getElementById('platform').textContent = '-';
             document.getElementById('status').textContent = '-';
             document.getElementById('receiptsSent').textContent = '0';
-            document.getElementById('cost').textContent = 'Rp0';
+            document.getElementById('cost').textContent = formatCurrency(0);
+            
+            // If we're on this page but not logged in, redirect to login page
+            if (window.location.pathname.includes('/raku-ai/receipt')) {
+                window.location.href = '/auth/login?redirect=' + encodeURIComponent(window.location.pathname);
+            }
         }
     });
+
+    // No need to call loadApplicationData() directly - the auth state change handler will handle it
 }); 

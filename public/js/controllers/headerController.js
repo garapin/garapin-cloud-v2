@@ -87,7 +87,6 @@ window.updateUserUI = (user) => {
         };
         
         img.onerror = () => {
-            console.warn('Failed to load profile image:', photoURL);
             showInitialsFallback();
         };
 
@@ -168,10 +167,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Set up auth state listener
         firebase.auth().onAuthStateChanged(async (user) => {
             if (user) {
-                console.log('Auth state changed - user logged in:', user.email);
                 await window.handleAuthStateChange(user);
             } else {
-                console.log('Auth state changed - user logged out');
                 updateUserUI(null);
             }
         });
@@ -194,11 +191,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         const userNameDisplay = document.getElementById('userName');
         if (userNameDisplay && (userNameDisplay.textContent === 'Loading...' || !userNameDisplay.textContent.trim())) {
             const currentUser = firebase.auth().currentUser;
-            console.log('Fallback check after 5 seconds, firebase.auth().currentUser:', currentUser);
             if (currentUser) {
                 userNameDisplay.textContent = currentUser.displayName || (currentUser.email ? currentUser.email.split('@')[0] : 'User');
-            } else {
-                console.warn('No current user found in fallback.');
             }
         }
     }, 5000);

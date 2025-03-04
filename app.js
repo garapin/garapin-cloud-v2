@@ -169,6 +169,8 @@ const connectDB = async () => {
             // Define more fields if needed, but make them optional
             _id: { type: mongoose.Schema.Types.ObjectId, required: false },
             receipt_id: { type: String, required: false },
+            user_id: { type: String, required: false }, // Explicitly define user_id
+            sentDate: { type: Date, required: false },  // Explicitly define sentDate
             created_at: { type: Date, required: false },
             updated_at: { type: Date, required: false }
           }, { 
@@ -326,8 +328,54 @@ const checkAuth = async (req, res, next) => {
     }
 };
 
+// Middleware to check Raku AI approval status and make it available to views
+const checkRakuAIStatus = async (req, res, next) => {
+    try {
+        if (req.user) {
+            // Find the profile using the user_id from verifyToken middleware
+            const profile = await Profile.findOne({ user_id: req.user._id }).lean();
+            
+            // Check if Raku AI is approved
+            const raku_ai_approved = 
+                profile && 
+                profile.raku_ai && 
+                profile.raku_ai.status === 'Approved';
+            
+            // Make this available to all views
+            res.locals.raku_ai_approved = raku_ai_approved;
+        } else {
+            res.locals.raku_ai_approved = false;
+        }
+        next();
+    } catch (error) {
+        console.error('Error checking Raku AI status:', error);
+        res.locals.raku_ai_approved = false;
+        next();
+    }
+};
+
+// Middleware to check if Raku AI is approved for protected routes
+const requireRakuAIApproval = async (req, res, next) => {
+    try {
+        const profile = await Profile.findOne({ user_id: req.user._id }).lean();
+        const isApproved = profile && profile.raku_ai && profile.raku_ai.status === 'Approved';
+        
+        if (isApproved) {
+            return next();
+        } else {
+            // Redirect to Raku AI page with error message as query parameter
+            return res.redirect('/raku-ai?error=approval_required');
+        }
+    } catch (error) {
+        console.error('Error checking Raku AI approval:', error);
+        // Redirect with a generic error message
+        return res.redirect('/raku-ai?error=server_error');
+    }
+};
+
 // Apply middleware
 app.use(checkAuth);
+app.use(checkRakuAIStatus);
 
 // Mount routes
 const profileRoutes = require('./routes/profile');
@@ -705,26 +753,39 @@ app.get('/raku-ai', async (req, res) => {
         firebaseConfig,
         user: req.user,
         pageTitle: 'Raku AI',
-        currentPage: 'raku-ai'
+        currentPage: 'raku-ai',
+        query: req.query
     });
 });
 
-app.get('/raku-ai/receipt', async (req, res) => {
+app.get('/raku-ai/receipt', checkAuth, async (req, res) => {
+    try {
+        // If we get here, the user is authenticated via checkAuth middleware
+        // This is more user-friendly than verifyToken middleware for browser requests
+        
+        // Check if user has an approved Raku AI profile
+        const profile = await Profile.findOne({ user_id: req.user._id });
+        
+        // Check if Raku AI is approved
+        const isApproved = profile && profile.raku_ai && profile.raku_ai.status === 'Approved';
+        
+        // Render the page with approval status
     res.render('receipt', { 
         firebaseConfig,
         user: req.user,
         pageTitle: 'Receipt',
-        currentPage: 'raku-ai-receipt'
-    });
+            currentPage: 'raku-ai-receipt',
+            raku_ai_approved: isApproved
+        });
+    } catch (error) {
+        console.error('Error accessing receipt page:', error);
+        res.status(500).send('Internal Server Error');
+    }
 });
 
-// Add Credit page
-app.get('/raku-ai/tambah-saldo', async (req, res) => {
+// Tambah Saldo page
+app.get('/raku-ai/tambah-saldo', checkAuth, requireRakuAIApproval, async (req, res) => {
     try {
-        // Firebase configuration for the client
-        // const firebaseConfig = getFirebaseConfig();
-        
-        // Render the template with Firebase config
         res.render('tambah-saldo', { 
             firebaseConfig, 
             user: req.session.user,
@@ -739,7 +800,7 @@ app.get('/raku-ai/tambah-saldo', async (req, res) => {
 });
 
 // Payment history page
-app.get('/raku-ai/history', async (req, res) => {
+app.get('/raku-ai/history', checkAuth, requireRakuAIApproval, async (req, res) => {
     res.render('payment-history', { 
         firebaseConfig,
         user: req.user,
@@ -1397,7 +1458,7 @@ app.post('/api/applications/install', verifyToken, async (req, res) => {
             });
         }
 
-        // Update application's installed count
+        // Update the installed_count for this application
         await Application.findByIdAndUpdate(
             applicationId,
             { $inc: { installed_count: 1 } }
@@ -1493,11 +1554,11 @@ app.use('/api/applications', verifyToken, require('./controllers/backend/applica
 // Add Raku AI application info endpoint
 app.get('/api/raku-ai/application-info', verifyToken, async (req, res) => {
     try {
-        console.log('Fetching Raku AI application info for user:', req.user.provider_uid);
+        console.log('Fetching Raku AI application info for user:', req.user._id);
         
         // Find the profile using the imported Profile model
         const profile = await Profile.findOne({ 
-            provider_uid: req.user.provider_uid 
+            user_id: req.user._id 
         }).lean();
         
         console.log('Found profile:', profile ? 'Yes' : 'No');
@@ -1523,8 +1584,12 @@ app.get('/api/raku-ai/application-info', verifyToken, async (req, res) => {
         let receiptCount = 0;
         if (global.RakuReceipt) {
             try {
-                receiptCount = await global.RakuReceipt.countDocuments({ status: 'sent' });
-                console.log(`Found ${receiptCount} receipts with status 'sent' in Raku database`);
+                // Use _id for receipt count query to ensure consistency
+                receiptCount = await global.RakuReceipt.countDocuments({ 
+                    status: 'sent',
+                    user_id: req.user._id.toString()
+                });
+                console.log(`Found ${receiptCount} receipts with status 'sent' for user ${req.user._id}`);
             } catch (err) {
                 console.error('Error counting receipts from Raku database:', err);
             }
@@ -1562,11 +1627,12 @@ app.get('/api/raku-ai/application-info', verifyToken, async (req, res) => {
 });
 
 // Add endpoint to get receipt count from Raku database
-app.get('/api/raku-ai/receipt-count', verifyToken, async (req, res) => {
+app.get('/api/raku-ai/receipt-count', verifyToken, requireRakuAIApproval, async (req, res) => {
     try {
         console.log('------------------------------');
         console.log('Fetching receipt count from Raku database');
         console.log('Date range params (raw):', req.query.start, 'to', req.query.end, 'timezone:', req.query.timezone);
+        console.log('User ID:', req.user._id, 'Provider UID:', req.user.provider_uid);
         
         // Check if RakuReceipt is initialized and get collection name
         if (!global.RakuReceipt) {
@@ -1640,7 +1706,9 @@ app.get('/api/raku-ai/receipt-count', verifyToken, async (req, res) => {
                         sentDate: {
                             $gte: startRange.start,
                             $lte: endRange.end
-                        }
+                        },
+                        // Use the MongoDB _id from the users collection instead of provider_uid
+                        user_id: req.user._id.toString()
                     };
                     
                     console.log('\nExecuting query:');
@@ -1648,7 +1716,8 @@ app.get('/api/raku-ai/receipt-count', verifyToken, async (req, res) => {
                     console.log(`  sentDate: {`);
                     console.log(`    $gte: ISODate("${startRange.start.toISOString()}"), // ${startDate} 00:00:00 UTC+7`);
                     console.log(`    $lte: ISODate("${endRange.end.toISOString()}")  // ${endDate} 23:59:59 UTC+7`);
-                    console.log(`  }`);
+                    console.log(`  },`);
+                    console.log(`  user_id: "${req.user._id.toString()}" // Filter by authenticated user MongoDB _id`);
                     console.log(`});`);
                     
                     // EXAMPLES - for reference
@@ -1684,11 +1753,13 @@ app.get('/api/raku-ai/receipt-count', verifyToken, async (req, res) => {
                         sentDate: {
                             $gte: startDate,
                             $lte: endDate
-                        }
+                        },
+                        // Use the MongoDB _id from the users collection instead of provider_uid
+                        user_id: req.user._id.toString()
                     };
                     
                     const count = await global.RakuReceipt.countDocuments(query);
-                    console.log(`Found ${count} receipts in date range (UTC)`);
+                    console.log(`Found ${count} receipts in date range (UTC) for user MongoDB _id: ${req.user._id}`);
                     return res.json({ count });
                 }
             } catch (err) {
@@ -1700,9 +1771,10 @@ app.get('/api/raku-ai/receipt-count', verifyToken, async (req, res) => {
                 });
             }
         } else {
-            // If no date range, count all receipts
-            const count = await global.RakuReceipt.countDocuments({});
-            console.log(`No date range provided. Total receipts: ${count}`);
+            // If no date range, count all receipts for this user
+            // Use the MongoDB _id from the users collection instead of provider_uid
+            const count = await global.RakuReceipt.countDocuments({ user_id: req.user._id.toString() });
+            console.log(`No date range provided. Total receipts for user MongoDB _id ${req.user._id}: ${count}`);
             return res.json({ count });
         }
     } catch (error) {
@@ -1716,13 +1788,13 @@ app.get('/api/raku-ai/receipt-count', verifyToken, async (req, res) => {
 });
 
 // Add endpoint to get receipt application info
-app.get('/api/receipt/application-info', verifyToken, async (req, res) => {
+app.get('/api/receipt/application-info', verifyToken, requireRakuAIApproval, async (req, res) => {
     try {
-        console.log('Fetching receipt application info for user:', req.user.provider_uid);
+        console.log('Fetching receipt application info for user:', req.user._id);
         
         // Find the profile using the imported Profile model
         const profile = await Profile.findOne({ 
-            provider_uid: req.user.provider_uid 
+            user_id: req.user._id 
         }).lean();
         
         console.log('Found profile:', profile ? 'Yes' : 'No');
@@ -1758,10 +1830,11 @@ app.get('/api/receipt/application-info', verifyToken, async (req, res) => {
 });
 
 // Add endpoint to get receipt statistics
-app.get('/api/receipt/stats', verifyToken, async (req, res) => {
+app.get('/api/receipt/stats', verifyToken, requireRakuAIApproval, async (req, res) => {
     try {
         console.log('Fetching receipt statistics');
         console.log('Date range:', req.query.start, 'to', req.query.end);
+        console.log('User ID:', req.user._id, 'Provider UID:', req.user.provider_uid);
         
         if (!global.RakuReceipt) {
             console.log('RakuReceipt model not available');
@@ -1776,7 +1849,9 @@ app.get('/api/receipt/stats', verifyToken, async (req, res) => {
                 { status: { $regex: new RegExp('^sent$', 'i') } },
                 { status: 'approved' },
                 { status: 'APPROVED' }
-            ]
+            ],
+            // Use the MongoDB _id from the users collection instead of provider_uid
+            user_id: req.user._id.toString()
         };
         
         // Add date range filter if provided
@@ -1807,8 +1882,11 @@ app.get('/api/receipt/stats', verifyToken, async (req, res) => {
         console.log('Final query:', JSON.stringify(query));
         
         // For diagnostics: Check how many receipts exist in total with status 'sent'
-        const totalSentReceipts = await global.RakuReceipt.countDocuments({ status: 'sent' });
-        console.log(`Total receipts with status 'sent' (any user): ${totalSentReceipts}`);
+        const totalSentReceipts = await global.RakuReceipt.countDocuments({ 
+            status: 'sent',
+            user_id: req.user._id.toString() // Add user filter here too for more accurate diagnostics
+        });
+        console.log(`Total receipts with status 'sent' for user ${req.user._id}: ${totalSentReceipts}`);
         
         // Use aggregation to get both count and total cost in one query
         const result = await global.RakuReceipt.aggregate([
