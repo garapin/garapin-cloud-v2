@@ -380,7 +380,7 @@
                 }
 
                 // Show success message
-                alert(result.message || 'Receipt sent successfully');
+                alert((result.message ? result.message + '. ' : 'Receipt Submitted Successfully. ') + 'Silahkan menunggu 5-10 menit untuk message Kamu terkirim');
                 
                 // Clear form
                 e.target.reset();
