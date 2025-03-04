@@ -1757,7 +1757,9 @@ app.get('/api/raku-ai/receipt-count', verifyToken, requireRakuAIApproval, async 
                             $lte: endRange.end
                         },
                         // Use the MongoDB _id from the users collection instead of provider_uid
-                        user_id: req.user._id.toString()
+                        user_id: req.user._id.toString(),
+                        // Filter by status "sent"
+                        status: "sent"
                     };
                     
                     console.log('\nExecuting query:');
@@ -1766,7 +1768,8 @@ app.get('/api/raku-ai/receipt-count', verifyToken, requireRakuAIApproval, async 
                     console.log(`    $gte: ISODate("${startRange.start.toISOString()}"), // ${startDate} 00:00:00 UTC+7`);
                     console.log(`    $lte: ISODate("${endRange.end.toISOString()}")  // ${endDate} 23:59:59 UTC+7`);
                     console.log(`  },`);
-                    console.log(`  user_id: "${req.user._id.toString()}" // Filter by authenticated user MongoDB _id`);
+                    console.log(`  user_id: "${req.user._id.toString()}", // Filter by authenticated user MongoDB _id`);
+                    console.log(`  status: "sent" // Filter by status "sent"`);
                     console.log(`});`);
                     
                     // EXAMPLES - for reference
@@ -1804,7 +1807,9 @@ app.get('/api/raku-ai/receipt-count', verifyToken, requireRakuAIApproval, async 
                             $lte: endDate
                         },
                         // Use the MongoDB _id from the users collection instead of provider_uid
-                        user_id: req.user._id.toString()
+                        user_id: req.user._id.toString(),
+                        // Filter by status "sent"
+                        status: "sent"
                     };
                     
                     const count = await global.RakuReceipt.countDocuments(query);
@@ -1822,8 +1827,12 @@ app.get('/api/raku-ai/receipt-count', verifyToken, requireRakuAIApproval, async 
         } else {
             // If no date range, count all receipts for this user
             // Use the MongoDB _id from the users collection instead of provider_uid
-            const count = await global.RakuReceipt.countDocuments({ user_id: req.user._id.toString() });
-            console.log(`No date range provided. Total receipts for user MongoDB _id ${req.user._id}: ${count}`);
+            const query = {
+                user_id: req.user._id.toString(),
+                status: "sent"
+            };
+            const count = await global.RakuReceipt.countDocuments(query);
+            console.log(`No date range provided. Total receipts with status "sent" for user MongoDB _id ${req.user._id}: ${count}`);
             return res.json({ count });
         }
     } catch (error) {
