@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark-mode">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -9,32 +9,328 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.css">
     <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/dark-mode.css">
+    <style>
+        /* Dark mode styles */
+        .dark-mode {
+            background-color: var(--dark-bg);
+            color: #E2E8F0;
+        }
+
+        .dark-mode .container-fluid {
+            background-color: var(--dark-bg);
+        }
+
+        .dark-mode .bg-light {
+            background-color: var(--dark-bg) !important;
+        }
+
+        /* Dark mode main content area */
+        .dark-mode main {
+            background-color: var(--dark-bg) !important;
+            color: #E2E8F0;
+        }
+
+        .dark-mode .content-wrapper {
+            background-color: var(--dark-bg);
+        }
+
+        /* Dark mode card styles */
+        .dark-mode .card {
+            background-color: var(--dark-card-bg);
+            border-color: var(--dark-border);
+        }
+
+        .dark-mode .card-body {
+            background-color: var(--dark-card-bg);
+        }
+
+        .dark-mode .card-title {
+            color: #E2E8F0;
+        }
+
+        /* Dark mode table styles */
+        .dark-mode .table {
+            color: #E2E8F0;
+            background-color: var(--dark-card-bg);
+        }
+
+        .dark-mode .table thead th {
+            background-color: var(--dark-hover);
+            color: #E2E8F0;
+            border-bottom-color: var(--dark-border);
+        }
+
+        .dark-mode .table td {
+            color: #E2E8F0;
+            border-color: var(--dark-border);
+            background-color: var(--dark-card-bg);
+        }
+
+        .dark-mode .table-hover tbody tr:hover {
+            background-color: var(--dark-hover);
+        }
+
+        /* Dark mode pagination styles */
+        .dark-mode .page-link {
+            background-color: var(--dark-card-bg);
+            border-color: var(--dark-border);
+            color: #E2E8F0;
+        }
+
+        .dark-mode .page-link:hover {
+            background-color: var(--dark-hover);
+            border-color: var(--dark-border);
+            color: #E2E8F0;
+        }
+
+        .dark-mode .page-item.active .page-link {
+            background-color: #3B82F6;
+            border-color: #3B82F6;
+            color: #E2E8F0;
+        }
+
+        .dark-mode .page-item.disabled .page-link {
+            background-color: var(--dark-card-bg);
+            border-color: var(--dark-border);
+            color: #64748B;
+        }
+
+        /* Dark mode input group styles */
+        .dark-mode .input-group-text {
+            background-color: var(--dark-input-bg);
+            border-color: var(--dark-border);
+            color: #E2E8F0;
+        }
+
+        .dark-mode .form-control {
+            background-color: var(--dark-input-bg);
+            border-color: var(--dark-border);
+            color: #E2E8F0;
+        }
+
+        .dark-mode .form-control:focus {
+            background-color: var(--dark-input-bg);
+            border-color: #3B82F6;
+            color: #E2E8F0;
+            box-shadow: 0 0 0 0.25rem rgba(59, 130, 246, 0.25);
+        }
+
+        /* Dark mode badge styles */
+        .dark-mode .badge.bg-success {
+            background-color: #059669 !important;
+        }
+
+        .dark-mode .badge.bg-warning {
+            background-color: rgba(234, 179, 8, 0.8) !important;
+        }
+
+        .dark-mode .badge.bg-danger {
+            background-color: #DC2626 !important;
+        }
+
+        .dark-mode .badge.bg-secondary {
+            background-color: #4B5563 !important;
+        }
+
+        /* Dark mode loading and no data states */
+        .dark-mode .text-muted {
+            color: #94A3B8 !important;
+        }
+
+        .dark-mode .spinner-border.text-primary {
+            color: #3B82F6 !important;
+        }
+
+        /* Dark mode modal styles */
+        .dark-mode .modal-content {
+            background-color: var(--dark-card-bg);
+            border-color: var(--dark-border);
+        }
+
+        .dark-mode .modal-header {
+            border-bottom-color: var(--dark-border);
+        }
+
+        .dark-mode .modal-footer {
+            border-top-color: var(--dark-border);
+        }
+
+        .dark-mode .modal-title {
+            color: #E2E8F0;
+        }
+
+        .dark-mode .btn-close {
+            filter: invert(1) grayscale(100%) brightness(200%);
+        }
+
+        .dark-mode .table-borderless td {
+            color: #E2E8F0;
+        }
+
+        .dark-mode .table-sm td strong {
+            color: #94A3B8;
+        }
+
+        /* Dark mode button styles */
+        .dark-mode .btn-secondary {
+            background-color: #4B5563;
+            border-color: #4B5563;
+            color: #E2E8F0;
+        }
+
+        .dark-mode .btn-secondary:hover {
+            background-color: #374151;
+            border-color: #374151;
+            color: #E2E8F0;
+        }
+
+        /* Dark mode text colors */
+        .dark-mode .text-primary {
+            color: #3B82F6 !important;
+        }
+
+        .dark-mode p {
+            color: #E2E8F0;
+        }
+
+        /* Dark mode table responsive */
+        .dark-mode .table-responsive {
+            background-color: var(--dark-card-bg);
+            border-radius: 0.5rem;
+        }
+
+        /* Dark mode loading spinner */
+        .dark-mode .spinner-border {
+            border-color: #3B82F6;
+            border-right-color: transparent;
+        }
+
+        /* Dark mode daterangepicker styles */
+        .dark-mode .daterangepicker {
+            background-color: var(--dark-card-bg);
+            border-color: var(--dark-border);
+        }
+
+        .dark-mode .daterangepicker:before,
+        .dark-mode .daterangepicker:after {
+            border-bottom-color: var(--dark-border);
+        }
+
+        .dark-mode .daterangepicker .calendar-table {
+            background-color: var(--dark-card-bg);
+            border: none;
+        }
+
+        .dark-mode .daterangepicker td.available:hover, 
+        .dark-mode .daterangepicker th.available:hover {
+            background-color: var(--dark-hover);
+        }
+
+        .dark-mode .daterangepicker td.off, 
+        .dark-mode .daterangepicker td.off.in-range, 
+        .dark-mode .daterangepicker td.off.start-date, 
+        .dark-mode .daterangepicker td.off.end-date {
+            background-color: var(--dark-bg);
+            color: #64748B;
+        }
+
+        .dark-mode .daterangepicker td.in-range {
+            background-color: rgba(59, 130, 246, 0.1);
+            color: #E2E8F0;
+        }
+
+        .dark-mode .daterangepicker td.active, 
+        .dark-mode .daterangepicker td.active:hover {
+            background-color: #3B82F6;
+            color: #E2E8F0;
+        }
+
+        .dark-mode .daterangepicker .calendar-table .next span, 
+        .dark-mode .daterangepicker .calendar-table .prev span {
+            border-color: #E2E8F0;
+        }
+
+        .dark-mode .daterangepicker .calendar-table .next:hover span, 
+        .dark-mode .daterangepicker .calendar-table .prev:hover span {
+            border-color: #3B82F6;
+        }
+
+        .dark-mode .daterangepicker .calendar-table th, 
+        .dark-mode .daterangepicker .calendar-table td {
+            color: #E2E8F0;
+        }
+
+        .dark-mode .daterangepicker .ranges li {
+            color: #E2E8F0;
+        }
+
+        .dark-mode .daterangepicker .ranges li:hover {
+            background-color: var(--dark-hover);
+        }
+
+        .dark-mode .daterangepicker .ranges li.active {
+            background-color: #3B82F6;
+            color: #E2E8F0;
+        }
+
+        /* Dark mode body and html */
+        .dark-mode body,
+        .dark-mode html {
+            background-color: var(--dark-bg);
+            color: #E2E8F0;
+        }
+
+        /* Dark mode row */
+        .dark-mode .row {
+            background-color: var(--dark-bg);
+        }
+
+        /* Dark mode col */
+        .dark-mode .col-12,
+        .dark-mode .col-md-9,
+        .dark-mode .col-lg-10 {
+            background-color: var(--dark-bg);
+        }
+
+        /* Dark mode container */
+        .dark-mode .container-fluid,
+        .dark-mode .container {
+            background-color: var(--dark-bg);
+        }
+
+        /* Dark mode content area */
+        .dark-mode .content-wrapper,
+        .dark-mode .content {
+            background-color: var(--dark-bg);
+        }
+    </style>
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-auth-compat.js"></script>
 </head>
-<body>
-    <div class="container-fluid" data-firebase-config='<%= JSON.stringify(firebaseConfig) %>'>
+<body class="dark-mode">
+    <div class="container-fluid dark-mode" data-firebase-config='<%= JSON.stringify(firebaseConfig) %>'>
         <div class="row">
             <%- include('partials/sidebar', {currentPage: 'raku-ai'}) %>
 
             <!-- Main content -->
-            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 bg-light">
+            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 dark-mode">
                 <%- include('partials/header', {pageTitle: 'Payment History'}) %>
 
                 <!-- History Content -->
                 <div class="row mb-4">
                     <div class="col-12">
-                        <div class="card">
-                            <div class="card-body">
+                        <div class="card dark-mode">
+                            <div class="card-body dark-mode">
                                 <div class="d-flex justify-content-between align-items-center mb-4">
                                     <h5 class="card-title mb-0">Payment Transaction History</h5>
                                     <div class="d-flex align-items-center">
                                         <div class="input-group" style="width: 300px;">
-                                            <span class="input-group-text bg-light">
+                                            <span class="input-group-text dark-mode">
                                                 <i class="bi bi-calendar-range text-primary"></i>
                                             </span>
-                                            <input type="text" class="form-control bg-light border-start-0 date-input" 
+                                            <input type="text" class="form-control border-start-0 date-input dark-mode" 
                                                 id="dateRangePicker" 
                                                 placeholder="Select date range" 
                                                 readonly
@@ -45,8 +341,8 @@
                                 </div>
 
                                 <!-- Table section -->
-                                <div class="table-responsive">
-                                    <table class="table table-hover" id="paymentHistoryTable">
+                                <div class="table-responsive dark-mode">
+                                    <table class="table table-hover dark-mode" id="paymentHistoryTable">
                                         <thead>
                                             <tr>
                                                 <th>Date & Time</th>
@@ -55,7 +351,7 @@
                                                 <th>Amount</th>
                                             </tr>
                                         </thead>
-                                        <tbody id="paymentHistoryTableBody">
+                                        <tbody id="paymentHistoryTableBody" class="dark-mode">
                                             <!-- Placeholder loading row -->
                                             <tr id="loadingRow">
                                                 <td colspan="4" class="text-center py-4">
@@ -91,14 +387,14 @@
     </div>
 
     <!-- Invoice Details Modal -->
-    <div class="modal fade" id="invoiceDetailsModal" tabindex="-1" aria-labelledby="invoiceDetailsModalLabel" aria-hidden="true">
+    <div class="modal fade dark-mode" id="invoiceDetailsModal" tabindex="-1" aria-labelledby="invoiceDetailsModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <div class="modal-header">
+            <div class="modal-content dark-mode">
+                <div class="modal-header dark-mode">
                     <h5 class="modal-title" id="invoiceDetailsModalLabel">Invoice Details</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                 </div>
-                <div class="modal-body">
+                <div class="modal-body dark-mode">
                     <div class="row mb-3">
                         <div class="col-md-6">
                             <p><strong>Invoice ID:</strong> <span id="modalInvoiceId"></span></p>
@@ -112,7 +408,7 @@
                     <hr>
                     <div class="mb-3">
                         <h6>Payment Details</h6>
-                        <table class="table table-sm table-borderless">
+                        <table class="table table-sm table-borderless dark-mode">
                             <tbody>
                                 <tr>
                                     <td width="200"><strong>Payment Method:</strong></td>
@@ -134,7 +430,7 @@
                         </table>
                     </div>
                 </div>
-                <div class="modal-footer">
+                <div class="modal-footer dark-mode">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                 </div>
             </div>

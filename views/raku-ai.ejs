@@ -1,14 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Garapin Cloud - Raku AI</title>
-    <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon.png">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
+    <%- include('partials/head') %>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.css">
-    <link rel="stylesheet" href="/css/style.css">
     <style>
         .raku-card {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -16,18 +11,252 @@
         .raku-card h3 {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
         }
-        .date-input {
-            background-color: transparent !important;
-            border-color: rgba(255, 255, 255, 0.2) !important;
-            color: white !important;
+        /* Dark mode styles for date input */
+        .dark-mode .date-input {
+            background-color: var(--dark-input-bg) !important;
+            border-color: var(--dark-border) !important;
+            color: var(--dark-text) !important;
         }
-        .date-input::placeholder {
-            color: rgba(255, 255, 255, 0.7) !important;
+        .dark-mode .date-input::placeholder {
+            color: rgba(222, 228, 238, 0.5) !important;
         }
-        .date-input-group .input-group-text {
-            background-color: transparent !important;
-            border-color: rgba(255, 255, 255, 0.2) !important;
-            color: white !important;
+        .dark-mode .date-input-group .input-group-text {
+            background-color: var(--dark-input-bg) !important;
+            border-color: var(--dark-border) !important;
+            color: var(--dark-text) !important;
+        }
+        /* Dark mode styles for terms box */
+        .dark-mode .terms-box {
+            background-color: var(--dark-card-bg) !important;
+            border: 1px solid var(--dark-border);
+        }
+        /* Dark mode styles for Raku AI cards */
+        .dark-mode .raku-card {
+            background-color: #011168 !important;
+        }
+        /* Dark mode styles for API keys section */
+        .dark-mode h5.card-title,
+        .dark-mode h6.mb-0 {
+            color: #E2E8F0 !important;
+            font-weight: 600 !important;
+        }
+        .dark-mode .text-muted,
+        .dark-mode p {
+            color: #CBD5E1 !important;
+        }
+        .dark-mode .alert-warning {
+            background-color: rgba(234, 179, 8, 0.1);
+            border-color: rgba(234, 179, 8, 0.2);
+            color: #EAB308;
+        }
+        .dark-mode .alert-warning .alert-heading {
+            color: #F59E0B;
+        }
+        .dark-mode .alert-warning ul {
+            color: #FCD34D;
+        }
+        /* Dark mode table styles */
+        .dark-mode .table {
+            color: #E2E8F0 !important;
+            background-color: var(--dark-card-bg);
+        }
+        .dark-mode .table thead {
+            background-color: var(--dark-hover);
+        }
+        .dark-mode .table thead th {
+            color: #E2E8F0 !important;
+            border-bottom-color: var(--dark-border);
+            font-weight: 600;
+            background-color: var(--dark-hover);
+        }
+        .dark-mode .table tbody td {
+            color: #E2E8F0 !important;
+            border-color: var(--dark-border);
+            background-color: var(--dark-card-bg);
+        }
+        .dark-mode .table-responsive {
+            background-color: var(--dark-card-bg);
+            border-radius: 0.5rem;
+        }
+        /* Dark mode background fix */
+        .dark-mode .bg-light {
+            background-color: var(--dark-bg) !important;
+        }
+        /* Dark mode badge styles */
+        .dark-mode .badge.bg-success {
+            background-color: #059669 !important;
+            color: #E2E8F0;
+        }
+        .dark-mode .badge.bg-danger {
+            background-color: #DC2626 !important;
+            color: #E2E8F0;
+        }
+        /* Dark mode button styles in table */
+        .dark-mode .btn-outline-secondary {
+            color: #E2E8F0;
+            border-color: #4B5563;
+        }
+        .dark-mode .btn-outline-secondary:hover {
+            background-color: #4B5563;
+            color: #E2E8F0;
+        }
+        .dark-mode .btn-outline-danger {
+            color: #DC2626;
+            border-color: #DC2626;
+        }
+        .dark-mode .btn-outline-danger:hover {
+            background-color: #DC2626;
+            color: #E2E8F0;
+        }
+        /* Dark mode modal styles */
+        .dark-mode .modal-content {
+            background-color: var(--dark-card-bg);
+            border-color: var(--dark-border);
+        }
+        .dark-mode .modal-header {
+            border-bottom-color: var(--dark-border);
+        }
+        .dark-mode .modal-footer {
+            border-top-color: var(--dark-border);
+        }
+        .dark-mode .modal-title {
+            color: #E2E8F0;
+        }
+        .dark-mode .modal-body .form-label {
+            color: #E2E8F0;
+        }
+        .dark-mode .modal-body input.form-control {
+            background-color: var(--dark-input-bg);
+            border-color: var(--dark-border);
+            color: #E2E8F0;
+        }
+        .dark-mode .modal-body input.form-control:focus {
+            border-color: #3B82F6;
+            box-shadow: 0 0 0 0.25rem rgba(59, 130, 246, 0.25);
+        }
+        .dark-mode .modal-body input.form-control::placeholder {
+            color: #94A3B8;
+        }
+        .dark-mode .btn-close {
+            filter: invert(1) grayscale(100%) brightness(200%);
+        }
+        .dark-mode .alert-success {
+            background-color: rgba(5, 150, 105, 0.1);
+            border-color: rgba(5, 150, 105, 0.2);
+            color: #10B981;
+        }
+        .dark-mode .alert-success strong {
+            color: #34D399;
+        }
+        .dark-mode .text-danger {
+            color: #EF4444 !important;
+        }
+        .dark-mode .modal .btn-secondary {
+            background-color: #3B82F6;
+            border-color: #3B82F6;
+            color: #E2E8F0;
+        }
+        .dark-mode .modal .btn-secondary:hover {
+            background-color: #2563EB;
+            border-color: #2563EB;
+        }
+        .dark-mode .modal .btn-primary {
+            background-color: #3B82F6;
+            border-color: #3B82F6;
+            color: #E2E8F0;
+        }
+        .dark-mode .modal .btn-primary:hover {
+            background-color: #2563EB;
+            border-color: #2563EB;
+        }
+        /* Dark mode styles for daterangepicker */
+        .dark-mode .daterangepicker {
+            background-color: var(--dark-card-bg);
+            border-color: var(--dark-border);
+        }
+        .dark-mode .daterangepicker:before,
+        .dark-mode .daterangepicker:after {
+            border-bottom-color: var(--dark-border);
+        }
+        .dark-mode .daterangepicker .calendar-table {
+            background-color: var(--dark-card-bg);
+            border: none;
+        }
+        .dark-mode .daterangepicker td.available:hover, 
+        .dark-mode .daterangepicker th.available:hover {
+            background-color: var(--dark-hover);
+        }
+        .dark-mode .daterangepicker td.off, 
+        .dark-mode .daterangepicker td.off.in-range, 
+        .dark-mode .daterangepicker td.off.start-date, 
+        .dark-mode .daterangepicker td.off.end-date {
+            background-color: var(--dark-bg);
+            color: #64748B;
+        }
+        .dark-mode .daterangepicker td.in-range {
+            background-color: rgba(59, 130, 246, 0.1);
+            color: #E2E8F0;
+        }
+        .dark-mode .daterangepicker td.active, 
+        .dark-mode .daterangepicker td.active:hover {
+            background-color: #3B82F6;
+            color: #E2E8F0;
+        }
+        .dark-mode .daterangepicker .calendar-table .next span, 
+        .dark-mode .daterangepicker .calendar-table .prev span {
+            border-color: #E2E8F0;
+        }
+        .dark-mode .daterangepicker .calendar-table .next:hover span, 
+        .dark-mode .daterangepicker .calendar-table .prev:hover span {
+            border-color: #3B82F6;
+        }
+        .dark-mode .daterangepicker .calendar-table th, 
+        .dark-mode .daterangepicker .calendar-table td {
+            color: #E2E8F0;
+        }
+        .dark-mode .daterangepicker .ranges li {
+            color: #E2E8F0;
+        }
+        .dark-mode .daterangepicker .ranges li:hover {
+            background-color: var(--dark-hover);
+        }
+        .dark-mode .daterangepicker .ranges li.active {
+            background-color: #3B82F6;
+            color: #E2E8F0;
+        }
+        .dark-mode .daterangepicker .drp-buttons {
+            border-top-color: var(--dark-border);
+        }
+        .dark-mode .daterangepicker .drp-selected {
+            color: #94A3B8;
+        }
+        .dark-mode .daterangepicker .btn {
+            background-color: #3B82F6;
+            border-color: #3B82F6;
+            color: #E2E8F0;
+        }
+        .dark-mode .daterangepicker .btn:hover {
+            background-color: #2563EB;
+            border-color: #2563EB;
+        }
+        .dark-mode .daterangepicker .cancelBtn {
+            background-color: #4B5563;
+            border-color: #4B5563;
+        }
+        .dark-mode .daterangepicker .cancelBtn:hover {
+            background-color: #374151;
+            border-color: #374151;
+        }
+        .dark-mode .daterangepicker select.hourselect,
+        .dark-mode .daterangepicker select.minuteselect,
+        .dark-mode .daterangepicker select.secondselect,
+        .dark-mode .daterangepicker select.ampmselect {
+            background-color: var(--dark-input-bg);
+            border-color: var(--dark-border);
+            color: #E2E8F0;
+        }
+        .dark-mode .daterangepicker .calendar-time {
+            background-color: var(--dark-card-bg);
         }
     </style>
     <!-- Firebase SDK -->
@@ -40,7 +269,7 @@
             <%- include('partials/sidebar', {currentPage: 'raku-ai'}) %>
 
             <!-- Main content -->
-            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 bg-light">
+            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
                 <%- include('partials/header', {pageTitle: 'Raku AI'}) %>
 
                 <!-- Error Messages -->
@@ -281,22 +510,27 @@
                                             </ul>
                                             <p>7. Kepatuhan terhadap Kebijakan WhatsApp</p>
                                             <ul>
-                                                <li>Anda setuju untuk mematuhi semua kebijakan dan pedoman resmi WhatsApp, termasuk namun tidak terbatas pada:​</li>
-                                                <li>Kebijakan Perdagangan WhatsApp: Tidak menggunakan layanan untuk mempromosikan atau menjual produk atau layanan yang dilarang oleh kebijakan WhatsApp, seperti:​
+                                                <li>Anda setuju untuk mematuhi semua kebijakan dan pedoman resmi WhatsApp, termasuk namun tidak terbatas pada:​
                                                     <ul>
-                                                        <li>Produk tembakau dan perlengkapannya</li>
-                                                        <li>Obat-obatan terlarang atau obat resep tanpa izin</li>
-                                                        <li>Alkohol</li>
-                                                        <li>Suplemen yang tidak aman</li>
-                                                        <li>Senjata, amunisi, atau bahan peledak</li>
-                                                        <li>Hewan</li>
-                                                        <li>Produk atau layanan untuk dewasa</li>
-                                                        <li>Bagian tubuh atau cairan tubuh manusia</li>
-                                                        <li>Produk perawatan kesehatan dan medis tertentu</li>
-                                                        <li>Barang atau produk yang menggambarkan aktivitas seksual secara eksplisit</li>
-                                                        <li>Layanan perjudian dengan uang nyata</li>
-                                                        <li>Layanan kencan</li>
-                                                        <li>Produk atau item yang memfasilitasi atau mendorong akses tidak sah ke media digital</li>
+                                                        <li>Kebijakan Perdagangan WhatsApp: Tidak menggunakan layanan untuk mempromosikan atau menjual produk atau layanan yang dilarang oleh kebijakan WhatsApp, seperti:​
+                                                            <ul>
+                                                                <li>Produk tembakau dan perlengkapannya</li>
+                                                                <li>Obat-obatan terlarang atau obat resep tanpa izin</li>
+                                                                <li>Alkohol</li>
+                                                                <li>Suplemen yang tidak aman</li>
+                                                                <li>Senjata, amunisi, atau bahan peledak</li>
+                                                                <li>Hewan</li>
+                                                                <li>Produk atau layanan untuk dewasa</li>
+                                                                <li>Bagian tubuh atau cairan tubuh manusia</li>
+                                                                <li>Produk perawatan kesehatan dan medis tertentu</li>
+                                                                <li>Barang atau produk yang menggambarkan aktivitas seksual secara eksplisit</li>
+                                                                <li>Layanan perjudian dengan uang nyata</li>
+                                                                <li>Layanan kencan</li>
+                                                                <li>Produk atau item yang memfasilitasi atau mendorong akses tidak sah ke media digital</li>
+                                                            </ul>
+                                                        </li>
+                                                        <li>Kebijakan Pesan Bisnis WhatsApp: Mengirim pesan yang sesuai dengan pedoman konten dan tidak melanggar kebijakan pesan bisnis WhatsApp.​</li>
+                                                        <li>Kebijakan Anti-Spam: Tidak mengirim pesan spam atau pesan yang tidak diinginkan kepada pengguna tanpa persetujuan mereka.​</li>
                                                     </ul>
                                                 </li>
                                                 <li>Kebijakan Pesan Bisnis WhatsApp: Mengirim pesan yang sesuai dengan pedoman konten dan tidak melanggar kebijakan pesan bisnis WhatsApp.​</li>
@@ -441,11 +675,10 @@
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <%- include('partials/scripts') %>
     <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
     <script src="https://cdn.jsdelivr.net/momentjs/latest/moment.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.min.js"></script>
-    <script src="/js/controllers/headerController.js"></script>
     <script src="/js/controllers/rakuAiController.js"></script>
     
     <script>

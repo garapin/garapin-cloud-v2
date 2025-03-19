@@ -1,16 +1,8 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Garapin Cloud - Cloud Server Deploy</title>
-    <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon.png">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
-    <link rel="stylesheet" href="/css/style.css">
-    <!-- Firebase SDK -->
-    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-auth-compat.js"></script>
+    <%- include('partials/head') %>
 </head>
 <body>
     <div class="container-fluid" data-firebase-config='<%= JSON.stringify(firebaseConfig) %>'>
@@ -18,7 +10,7 @@
             <%- include('partials/sidebar', {currentPage: 'cloud-server-deploy'}) %>
 
             <!-- Main content -->
-            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 bg-light">
+            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
                 <%- include('partials/header', {pageTitle: 'Cloud Server Deploy'}) %>
 
                 <!-- Main Content Section -->
@@ -143,9 +135,8 @@
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <%- include('partials/scripts') %>
     <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
-    <script src="/js/controllers/headerController.js"></script>
     <script src="/js/controllers/cloudServerDeployController.js"></script>
     
     <script>

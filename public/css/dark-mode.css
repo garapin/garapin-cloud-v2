@@ -1,0 +1,203 @@
+/* Dark Mode Styles */
+:root {
+    --dark-bg: #1C2434;
+    --dark-card-bg: #1E293B;
+    --dark-text: #DEE4EE;
+    --dark-border: #334155;
+    --dark-hover: #2C3B52;
+    --dark-sidebar: #1C2434;
+    --dark-sidebar-hover: #334155;
+    --dark-input-bg: #1E293B;
+}
+
+body.dark-mode {
+    background-color: var(--dark-bg);
+    color: var(--dark-text);
+}
+
+/* Main content dark mode */
+.dark-mode main {
+    background-color: var(--dark-bg);
+}
+
+/* Sidebar Dark Mode */
+.dark-mode .sidebar {
+    background-color: var(--dark-sidebar) !important;
+    border-right: 1px solid var(--dark-border);
+    box-shadow: none;
+}
+
+.dark-mode .sidebar .nav-link {
+    color: rgba(222, 228, 238, 0.8);
+}
+
+.dark-mode .sidebar .nav-link:hover {
+    background-color: var(--dark-sidebar-hover);
+    color: #ffffff;
+}
+
+.dark-mode .sidebar .nav-link.active {
+    background-color: var(--dark-sidebar-hover);
+    color: #ffffff;
+}
+
+.dark-mode .sidebar hr {
+    border-color: var(--dark-border);
+}
+
+/* Card Dark Mode */
+.dark-mode .card {
+    background-color: var(--dark-card-bg);
+    border: 1px solid var(--dark-border);
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.dark-mode .card-title {
+    color: var(--dark-text);
+}
+
+/* Button Dark Mode */
+.dark-mode .btn-outline-secondary {
+    border-color: var(--dark-border);
+    color: #7B7FF6;
+}
+
+.dark-mode .btn-outline-secondary:hover,
+.dark-mode .btn-outline-secondary:focus,
+.dark-mode .btn-outline-secondary:active,
+.dark-mode .btn-outline-secondary.active,
+.dark-mode .show > .btn-outline-secondary.dropdown-toggle {
+    background-color: var(--dark-hover);
+    border-color: var(--dark-border);
+    color: #7B7FF6;
+}
+
+/* Dropdown Dark Mode */
+.dark-mode .dropdown-menu {
+    background-color: var(--dark-card-bg);
+    border-color: var(--dark-border);
+}
+
+.dark-mode .dropdown-item {
+    color: var(--dark-text);
+}
+
+.dark-mode .dropdown-item:hover,
+.dark-mode .dropdown-item:focus {
+    background-color: var(--dark-hover);
+    color: #ffffff;
+}
+
+.dark-mode .dropdown-divider {
+    border-color: var(--dark-border);
+}
+
+/* Table Dark Mode */
+.dark-mode .table {
+    color: var(--dark-text);
+}
+
+.dark-mode .table thead th {
+    background-color: var(--dark-card-bg);
+    border-bottom-color: var(--dark-border);
+}
+
+.dark-mode .table td,
+.dark-mode .table th {
+    border-color: var(--dark-border);
+}
+
+.dark-mode .table-hover tbody tr:hover {
+    background-color: var(--dark-hover);
+}
+
+/* Form Controls Dark Mode */
+.dark-mode .form-control,
+.dark-mode .form-select {
+    background-color: var(--dark-input-bg);
+    border-color: var(--dark-border);
+    color: var(--dark-text);
+}
+
+.dark-mode .form-control:focus,
+.dark-mode .form-select:focus {
+    background-color: var(--dark-input-bg);
+    border-color: #7B7FF6;
+    color: var(--dark-text);
+}
+
+.dark-mode .form-control::placeholder {
+    color: rgba(222, 228, 238, 0.5);
+}
+
+/* Border Colors */
+.dark-mode .border-bottom {
+    border-color: var(--dark-border) !important;
+}
+
+/* Background Colors */
+.dark-mode .bg-light {
+    background-color: var(--dark-card-bg) !important;
+}
+
+/* Toggle Button */
+.theme-toggle {
+    background: none;
+    border: none;
+    color: var(--dark-text);
+    cursor: pointer;
+    padding: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+}
+
+.theme-toggle:hover {
+    color: #7B7FF6;
+}
+
+/* Modal Dark Mode */
+.dark-mode .modal-content {
+    background-color: var(--dark-card-bg);
+    border-color: var(--dark-border);
+}
+
+.dark-mode .modal-header {
+    border-bottom-color: var(--dark-border);
+}
+
+.dark-mode .modal-footer {
+    border-top-color: var(--dark-border);
+}
+
+/* Alert Dark Mode */
+.dark-mode .alert {
+    background-color: var(--dark-card-bg);
+    border-color: var(--dark-border);
+}
+
+/* Badge Dark Mode */
+.dark-mode .badge.bg-light {
+    background-color: var(--dark-hover) !important;
+    color: var(--dark-text);
+}
+
+/* Custom Scrollbar */
+.dark-mode ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+.dark-mode ::-webkit-scrollbar-track {
+    background: var(--dark-bg);
+}
+
+.dark-mode ::-webkit-scrollbar-thumb {
+    background: var(--dark-border);
+    border-radius: 3px;
+}
+
+.dark-mode ::-webkit-scrollbar-thumb:hover {
+    background: var(--dark-hover);
+} 

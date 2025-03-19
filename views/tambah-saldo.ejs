@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark-mode">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,39 +8,149 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
     <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/dark-mode.css">
     <style>
-        .alert-info {
-            background-color: rgba(108, 125, 255, 0.15);
-            border-color: rgba(108, 125, 255, 0.3);
-            color: #2e3681;
+        /* Dark mode styles */
+        .dark-mode {
+            background-color: var(--dark-bg);
+            color: #E2E8F0;
+        }
+
+        .dark-mode .container-fluid {
+            background-color: var(--dark-bg);
+        }
+
+        .dark-mode .bg-light {
+            background-color: var(--dark-bg) !important;
+        }
+
+        /* Dark mode main content area */
+        .dark-mode main {
+            background-color: var(--dark-bg) !important;
+            color: #E2E8F0;
+        }
+
+        .dark-mode .content-wrapper {
+            background-color: var(--dark-bg);
+        }
+
+        /* Dark mode card styles */
+        .dark-mode .card {
+            background-color: var(--dark-card-bg);
+            border-color: var(--dark-border);
+        }
+
+        .dark-mode .card-body {
+            background-color: var(--dark-card-bg);
+            color: #E2E8F0;
+        }
+
+        .dark-mode .card-header {
+            border-bottom-color: var(--dark-border);
+        }
+
+        .dark-mode h3,
+        .dark-mode h4,
+        .dark-mode h5 {
+            color: #E2E8F0;
+        }
+
+        /* Dark mode form styles */
+        .dark-mode .form-label {
+            color: #E2E8F0;
+        }
+
+        .dark-mode .form-control {
+            background-color: var(--dark-input-bg);
+            border-color: var(--dark-border);
+            color: #E2E8F0;
+        }
+
+        .dark-mode .form-control:focus {
+            background-color: var(--dark-input-bg);
+            border-color: #3B82F6;
+            color: #E2E8F0;
+            box-shadow: 0 0 0 0.25rem rgba(59, 130, 246, 0.25);
+        }
+
+        .dark-mode .form-text {
+            color: #94A3B8;
+        }
+
+        .dark-mode .input-group-text {
+            background-color: var(--dark-input-bg);
+            border-color: var(--dark-border);
+            color: #E2E8F0;
+        }
+
+        /* Dark mode toast styles */
+        .dark-mode .toast {
+            background-color: var(--dark-card-bg);
+            border-color: var(--dark-border);
+        }
+
+        .dark-mode .toast-header {
+            background-color: var(--dark-hover);
+            border-bottom-color: var(--dark-border);
+            color: #E2E8F0;
+        }
+
+        .dark-mode .toast-body {
+            color: #E2E8F0;
+        }
+
+        .dark-mode .btn-close {
+            filter: invert(1) grayscale(100%) brightness(200%);
+        }
+
+        /* Dark mode modal styles */
+        .dark-mode .modal-content {
+            background-color: var(--dark-card-bg);
+            border-color: var(--dark-border);
+        }
+
+        .dark-mode .modal-body {
+            color: #E2E8F0;
+        }
+
+        .dark-mode .spinner-border {
+            border-color: #3B82F6;
+            border-right-color: transparent;
+        }
+
+        /* Dark mode alert styles */
+        .dark-mode .alert-info {
+            background-color: rgba(59, 130, 246, 0.1);
+            border-color: rgba(59, 130, 246, 0.2);
+            color: #60A5FA;
         }
     </style>
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-auth-compat.js"></script>
 </head>
-<body>
-    <div class="container-fluid" data-firebase-config='<%= JSON.stringify(firebaseConfig) %>' data-base-url='<%= baseUrl %>'>
+<body class="dark-mode">
+    <div class="container-fluid dark-mode" data-firebase-config='<%= JSON.stringify(firebaseConfig) %>' data-base-url='<%= baseUrl %>'>
         <div class="row">
             <%- include('partials/sidebar', {currentPage: currentPage}) %>
 
             <!-- Main content -->
-            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 bg-light">
+            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 dark-mode">
                 <%- include('partials/header', {pageTitle: pageTitle}) %>
 
                 <!-- Main content area -->
-                <div class="content-wrapper d-flex flex-column" style="flex: 1 1 auto;">
+                <div class="content-wrapper d-flex flex-column dark-mode" style="flex: 1 1 auto;">
                     <!-- Main content -->
-                    <div class="content" style="flex: 1 1 auto;">
+                    <div class="content dark-mode" style="flex: 1 1 auto;">
                         <div class="container-fluid h-100">
                             <!-- Tambah Saldo content -->
                             <div class="row justify-content-center">
                                 <div class="col-md-10">
-                                    <div class="card shadow">
-                                        <div class="card-header text-white" style="background-color: #6C7DFF;">
+                                    <div class="card shadow dark-mode">
+                                        <div class="card-header text-white" style="background-color: #3B82F6;">
                                             <h4 class="mb-0">Tambah Saldo</h4>
                                         </div>
-                                        <div class="card-body">
+                                        <div class="card-body dark-mode">
                                             <div class="mb-4">
                                                 <h5>Saldo Anda Saat Ini:</h5>
                                                 <h3 id="currentSaldo">Loading...</h3>
@@ -50,8 +160,8 @@
                                                 <div class="mb-3">
                                                     <label for="amount" class="form-label">Jumlah Tambah Saldo</label>
                                                     <div class="input-group">
-                                                        <span class="input-group-text">Rp</span>
-                                                        <input type="text" class="form-control" id="amount" placeholder="Masukkan jumlah" required>
+                                                        <span class="input-group-text dark-mode">Rp</span>
+                                                        <input type="text" class="form-control dark-mode" id="amount" placeholder="Masukkan jumlah" required>
                                                     </div>
                                                     <div class="text-danger small mt-1" id="amountError" style="display: none;"></div>
                                                     <div class="form-text">Minimum tambah saldo Rp10.000</div>
@@ -59,7 +169,7 @@
                                                 
                                                 <div class="d-flex justify-content-between mt-4">
                                                     <a href="/raku-ai" class="btn btn-secondary">Kembali</a>
-                                                    <button type="submit" class="btn text-white" id="payButton" style="background-color: #6C7DFF;">Bayar</button>
+                                                    <button type="submit" class="btn text-white" id="payButton" style="background-color: #3B82F6;">Bayar</button>
                                                 </div>
                                             </form>
                                         </div>
@@ -69,17 +179,16 @@
 
                             <!-- Toast notification for payment status -->
                             <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 11">
-                                <div id="paymentToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
-                                    <div class="toast-header">
+                                <div id="paymentToast" class="toast dark-mode" role="alert" aria-live="assertive" aria-atomic="true">
+                                    <div class="toast-header dark-mode">
                                         <strong class="me-auto">Payment Notification</strong>
                                         <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
                                     </div>
-                                    <div class="toast-body">
+                                    <div class="toast-body dark-mode">
                                         <!-- Toast message will be inserted here -->
                                     </div>
                                 </div>
                             </div>
-
                         </div>
                     </div>
                 </div>
@@ -88,9 +197,9 @@
     </div>
     
     <!-- Processing Modal -->
-    <div class="modal fade" id="processingModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal fade dark-mode" id="processingModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static">
         <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content">
+            <div class="modal-content dark-mode">
                 <div class="modal-body text-center p-4">
                     <div class="spinner-border" style="color: #6C7DFF;" role="status"></div>
                     <h5>Memproses Pembayaran</h5>

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark-mode">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -8,8 +8,198 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
     <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/dark-mode.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/daterangepicker/daterangepicker.css">
     <style>
+        /* Dark mode styles */
+        .dark-mode {
+            background-color: var(--dark-bg);
+            color: #E2E8F0;
+        }
+
+        .dark-mode .container-fluid {
+            background-color: var(--dark-bg);
+        }
+
+        .dark-mode .bg-light {
+            background-color: var(--dark-bg) !important;
+        }
+
+        /* Dark mode main content area */
+        .dark-mode main {
+            background-color: var(--dark-bg) !important;
+            color: #E2E8F0;
+        }
+
+        .dark-mode .content-wrapper {
+            background-color: var(--dark-bg);
+        }
+
+        /* Dark mode card styles */
+        .dark-mode .card {
+            background-color: var(--dark-card-bg);
+            border-color: var(--dark-border);
+        }
+
+        .dark-mode .card-body {
+            background-color: var(--dark-card-bg);
+            color: #E2E8F0;
+        }
+
+        .dark-mode .card-title {
+            color: #E2E8F0;
+        }
+
+        /* Dark mode form styles */
+        .dark-mode .form-label {
+            color: #E2E8F0;
+        }
+
+        .dark-mode .form-control {
+            background-color: var(--dark-input-bg);
+            border-color: var(--dark-border);
+            color: #E2E8F0;
+        }
+
+        .dark-mode .form-control:focus {
+            background-color: var(--dark-input-bg);
+            border-color: #3B82F6;
+            color: #E2E8F0;
+            box-shadow: 0 0 0 0.25rem rgba(59, 130, 246, 0.25);
+        }
+
+        .dark-mode .form-text {
+            color: #94A3B8;
+        }
+
+        .dark-mode .input-group-text {
+            background-color: var(--dark-input-bg);
+            border-color: var(--dark-border);
+            color: #E2E8F0;
+        }
+
+        /* Dark mode code block */
+        .dark-mode pre {
+            background-color: #1a1a1a !important;
+            border-color: var(--dark-border);
+        }
+
+        .dark-mode code {
+            color: #E2E8F0;
+        }
+
+        /* Status card styles in dark mode */
+        .status-card {
+            background-color: #3B82F6 !important;
+            color: white;
+            border: none;
+            border-radius: 15px;
+            height: 100%;
+        }
+
+        .status-card .card-body {
+            padding: 0.75rem !important;
+            min-height: 144px;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+        }
+
+        /* Dark mode date picker styles */
+        .dark-mode .daterangepicker {
+            background-color: var(--dark-card-bg);
+            border-color: var(--dark-border);
+        }
+
+        .dark-mode .daterangepicker:before,
+        .dark-mode .daterangepicker:after {
+            border-bottom-color: var(--dark-border);
+        }
+
+        .dark-mode .daterangepicker .calendar-table {
+            background-color: var(--dark-card-bg);
+            border: none;
+        }
+
+        .dark-mode .daterangepicker td.available:hover, 
+        .dark-mode .daterangepicker th.available:hover {
+            background-color: var(--dark-hover);
+        }
+
+        .dark-mode .daterangepicker td.off, 
+        .dark-mode .daterangepicker td.off.in-range, 
+        .dark-mode .daterangepicker td.off.start-date, 
+        .dark-mode .daterangepicker td.off.end-date {
+            background-color: var(--dark-bg);
+            color: #64748B;
+        }
+
+        .dark-mode .daterangepicker td.in-range {
+            background-color: rgba(59, 130, 246, 0.1);
+            color: #E2E8F0;
+        }
+
+        .dark-mode .daterangepicker td.active, 
+        .dark-mode .daterangepicker td.active:hover {
+            background-color: #3B82F6;
+            color: #E2E8F0;
+        }
+
+        .dark-mode .daterangepicker .calendar-table .next span, 
+        .dark-mode .daterangepicker .calendar-table .prev span {
+            border-color: #E2E8F0;
+        }
+
+        .dark-mode .daterangepicker .calendar-table .next:hover span, 
+        .dark-mode .daterangepicker .calendar-table .prev:hover span {
+            border-color: #3B82F6;
+        }
+
+        .dark-mode .daterangepicker .calendar-table th, 
+        .dark-mode .daterangepicker .calendar-table td {
+            color: #E2E8F0;
+        }
+
+        .dark-mode .daterangepicker .ranges li {
+            color: #E2E8F0;
+        }
+
+        .dark-mode .daterangepicker .ranges li:hover {
+            background-color: var(--dark-hover);
+        }
+
+        .dark-mode .daterangepicker .ranges li.active {
+            background-color: #3B82F6;
+            color: #E2E8F0;
+        }
+
+        /* Dark mode input group styles */
+        .date-input-group .input-group-text {
+            background-color: var(--dark-input-bg) !important;
+            border-color: var(--dark-border) !important;
+            color: #E2E8F0 !important;
+        }
+
+        .date-input {
+            background-color: var(--dark-input-bg) !important;
+            border-color: var(--dark-border) !important;
+            color: #E2E8F0 !important;
+        }
+
+        .date-input::placeholder {
+            color: #94A3B8 !important;
+        }
+
+        /* Dark mode text colors */
+        .dark-mode h3,
+        .dark-mode h4,
+        .dark-mode h5,
+        .dark-mode h6,
+        .dark-mode p,
+        .dark-mode span:not(.badge) {
+            color: #E2E8F0;
+        }
+
         .receipt-card {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
             background-color: #FFD699 !important;
@@ -136,12 +326,32 @@
             font-size: 1.2rem;
             padding: 0.5rem 2rem;
         }
+
+        /* File input button styling */
+        .dark-mode .form-control[type="file"] {
+            color: #E2E8F0;
+        }
+
+        .dark-mode .form-control[type="file"]::file-selector-button {
+            background-color: #3B82F6;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            margin-right: 16px;
+            transition: background-color 0.2s;
+        }
+
+        .dark-mode .form-control[type="file"]::file-selector-button:hover {
+            background-color: #2563EB;
+        }
     </style>
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-auth-compat.js"></script>
 </head>
-<body>
+<body class="dark-mode">
     <% if (typeof raku_ai_approved === 'undefined' || !raku_ai_approved) { %>
     <!-- Approval Required Overlay -->
     <div class="approval-required-overlay">
@@ -151,12 +361,12 @@
     </div>
     <% } %>
     
-    <div class="container-fluid" data-firebase-config='<%= JSON.stringify(firebaseConfig) %>'>
+    <div class="container-fluid dark-mode" data-firebase-config='<%= JSON.stringify(firebaseConfig) %>'>
         <div class="row">
             <%- include('partials/sidebar', {currentPage: 'raku-ai-receipt'}) %>
 
             <!-- Main content -->
-            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 bg-light <% if (typeof raku_ai_approved === 'undefined' || !raku_ai_approved) { %>opacity-25 pointer-events-none<% } %>">
+            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 dark-mode <% if (typeof raku_ai_approved === 'undefined' || !raku_ai_approved) { %>opacity-25 pointer-events-none<% } %>">
                 <%- include('partials/header', {pageTitle: 'Receipt'}) %>
 
                 <!-- Receipt content -->
@@ -195,10 +405,10 @@
                                 <div class="d-flex justify-content-between align-items-start mb-3">
                                     <h5 class="card-title mb-0" style="color: #ffffff; font-weight: normal;">Status</h5>
                                     <div class="input-group date-input-group" style="width: 286px;">
-                                        <span class="input-group-text">
+                                        <span class="input-group-text dark-mode">
                                             <i class="bi bi-calendar-range"></i>
                                         </span>
-                                        <input type="text" class="form-control date-input" 
+                                        <input type="text" class="form-control date-input dark-mode" 
                                             id="receiptDateRangePicker" 
                                             placeholder="Select date range" 
                                             readonly
@@ -226,8 +436,8 @@
                 <!-- API Documentation Section -->
                 <div class="row mt-3">
                     <div class="col-12">
-                        <div class="card">
-                            <div class="card-body">
+                        <div class="card dark-mode">
+                            <div class="card-body dark-mode">
                                 <h5 class="card-title">API Documentation</h5>
                                 <div class="api-docs mt-2">
                                     <pre class="bg-dark text-light p-3 rounded"><code>curl -X POST https://hermes.raku.id/receipt/send-receipt \
@@ -250,11 +460,11 @@
                                             <h6 class="mb-3">Headers</h6>
                                             <div class="mb-3">
                                                 <label class="form-label">Authorization Bearer</label>
-                                                <input type="text" class="form-control" id="apiKey" placeholder="Enter API key">
+                                                <input type="text" class="form-control dark-mode" id="apiKey" placeholder="Enter API key">
                                             </div>
                                             <div class="mb-3">
                                                 <label class="form-label">Destination Number</label>
-                                                <input type="text" class="form-control" id="phoneNumber" placeholder="Enter Phone Number with Indonesia country code 62. e.g. 628123456789 (not +62)">
+                                                <input type="text" class="form-control dark-mode" id="phoneNumber" placeholder="Enter Phone Number with Indonesia country code 62. e.g. 628123456789 (not +62)">
                                             </div>
                                         </div>
 
@@ -262,23 +472,23 @@
                                             <h6 class="mb-3">Request Data</h6>
                                             <div class="mb-3">
                                                 <label class="form-label">Merchant Name</label>
-                                                <input type="text" class="form-control" id="merchantName" placeholder="Enter merchant name">
+                                                <input type="text" class="form-control dark-mode" id="merchantName" placeholder="Enter merchant name">
                                             </div>
                                             <div class="mb-3">
                                                 <label class="form-label">Alamat</label>
-                                                <textarea class="form-control" id="alamat" rows="2" placeholder="Enter merchant address"></textarea>
+                                                <textarea class="form-control dark-mode" id="alamat" rows="2" placeholder="Enter merchant address"></textarea>
                                             </div>
                                             <div class="mb-3">
                                                 <label class="form-label">Invoice Number</label>
-                                                <input type="text" class="form-control" id="invoiceNumber" placeholder="Enter invoice number">
+                                                <input type="text" class="form-control dark-mode" id="invoiceNumber" placeholder="Enter invoice number">
                                             </div>
                                             <div class="mb-3">
                                                 <label class="form-label">Total</label>
-                                                <input type="number" class="form-control" id="total" placeholder="Enter total transaction">
+                                                <input type="number" class="form-control dark-mode" id="total" placeholder="Enter total transaction">
                                             </div>
                                             <div class="mb-3">
                                                 <label class="form-label">Invoice PDF File</label>
-                                                <input type="file" class="form-control" id="invoicePDFfile" accept="application/pdf" onchange="convertToBase64(this)">
+                                                <input type="file" class="form-control dark-mode" id="invoicePDFfile" accept="application/pdf" onchange="convertToBase64(this)">
                                                 <input type="hidden" id="invoicePDFbase64">
                                             </div>
                                         </div>
