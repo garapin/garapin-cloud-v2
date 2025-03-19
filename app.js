@@ -27,6 +27,7 @@ const applicationController = require('./controllers/backend/applications-backen
 const baseImageController = require('./controllers/backend/base-images-backend');
 const receiptRoutes = require('./controllers/receiptAI');
 const paymentRoutes = require('./routes/payments');
+const cloudServerRoutes = require('./routes/cloud-server');
 const PublicApiKey = require('./models/PublicApiKey');
 const GlobalPrice = require('./models/GlobalPrice');
 
@@ -386,6 +387,7 @@ const storeRouter = require('./routes/store');
 // Mount receipt routes
 app.use('/receipt', receiptRoutes);
 app.use('/payments', paymentRoutes);
+app.use('/cloud-server', cloudServerRoutes);
 
 // Add a direct route for Xendit callback that's coming to /api/payment/callback
 app.post('/api/payment/callback', async (req, res) => {

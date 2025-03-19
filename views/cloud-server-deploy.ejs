@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Garapin Cloud - Cloud Server Deploy</title>
+    <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon.png">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.7.2/font/bootstrap-icons.css">
+    <link rel="stylesheet" href="/css/style.css">
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.0.0/firebase-auth-compat.js"></script>
+</head>
+<body>
+    <div class="container-fluid" data-firebase-config='<%= JSON.stringify(firebaseConfig) %>'>
+        <div class="row">
+            <%- include('partials/sidebar', {currentPage: 'cloud-server-deploy'}) %>
+
+            <!-- Main content -->
+            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 bg-light">
+                <%- include('partials/header', {pageTitle: 'Cloud Server Deploy'}) %>
+
+                <!-- Main Content Section -->
+                <div class="row mt-4">
+                    <div class="col-12">
+                        <div class="card">
+                            <div class="card-body">
+                                <h5 class="card-title mb-4">Deploy Your Application</h5>
+                                
+                                <!-- Deployment Form -->
+                                <form id="deployForm" class="needs-validation" novalidate>
+                                    <!-- Project Information -->
+                                    <div class="mb-4">
+                                        <label for="projectName" class="form-label">Project Name</label>
+                                        <input type="text" class="form-control" id="projectName" required
+                                            placeholder="Enter your project name">
+                                        <div class="invalid-feedback">
+                                            Please provide a project name.
+                                        </div>
+                                    </div>
+
+                                    <!-- Repository Information -->
+                                    <div class="mb-4">
+                                        <label for="repoUrl" class="form-label">Git Repository URL</label>
+                                        <input type="url" class="form-control" id="repoUrl" required
+                                            placeholder="https://github.com/username/repository">
+                                        <div class="invalid-feedback">
+                                            Please provide a valid repository URL.
+                                        </div>
+                                    </div>
+
+                                    <!-- Branch Selection -->
+                                    <div class="mb-4">
+                                        <label for="branch" class="form-label">Branch</label>
+                                        <input type="text" class="form-control" id="branch" required
+                                            placeholder="main">
+                                        <div class="invalid-feedback">
+                                            Please specify a branch.
+                                        </div>
+                                    </div>
+
+                                    <!-- Environment Variables -->
+                                    <div class="mb-4">
+                                        <label class="form-label">Environment Variables</label>
+                                        <div id="envVarsContainer">
+                                            <div class="row mb-2">
+                                                <div class="col-5">
+                                                    <input type="text" class="form-control" placeholder="KEY" name="envKey[]">
+                                                </div>
+                                                <div class="col-6">
+                                                    <input type="text" class="form-control" placeholder="VALUE" name="envValue[]">
+                                                </div>
+                                                <div class="col-1">
+                                                    <button type="button" class="btn btn-danger btn-sm remove-env"><i class="bi bi-trash"></i></button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <button type="button" class="btn btn-outline-secondary btn-sm mt-2" id="addEnvVar">
+                                            <i class="bi bi-plus"></i> Add Environment Variable
+                                        </button>
+                                    </div>
+
+                                    <!-- Deployment Configuration -->
+                                    <div class="mb-4">
+                                        <label class="form-label">Deployment Configuration</label>
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label for="instanceType" class="form-label">Instance Type</label>
+                                                    <select class="form-select" id="instanceType" required>
+                                                        <option value="">Select instance type</option>
+                                                        <option value="small">Small (1 CPU, 1GB RAM)</option>
+                                                        <option value="medium">Medium (2 CPU, 2GB RAM)</option>
+                                                        <option value="large">Large (4 CPU, 4GB RAM)</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label for="region" class="form-label">Region</label>
+                                                    <select class="form-select" id="region" required>
+                                                        <option value="">Select region</option>
+                                                        <option value="jakarta">Jakarta, Indonesia</option>
+                                                        <option value="singapore">Singapore</option>
+                                                        <option value="tokyo">Tokyo, Japan</option>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Build Configuration -->
+                                    <div class="mb-4">
+                                        <label class="form-label">Build Configuration</label>
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label for="buildCommand" class="form-label">Build Command</label>
+                                                    <input type="text" class="form-control" id="buildCommand"
+                                                        placeholder="npm run build">
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label for="startCommand" class="form-label">Start Command</label>
+                                                    <input type="text" class="form-control" id="startCommand"
+                                                        placeholder="npm start">
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="text-end">
+                                        <button type="submit" class="btn btn-primary">Deploy Application</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
+    <script src="/js/controllers/headerController.js"></script>
+    <script src="/js/controllers/cloudServerDeployController.js"></script>
+    
+    <script>
+        // Initialize Firebase
+        const firebaseConfig = JSON.parse(document.querySelector('[data-firebase-config]').dataset.firebaseConfig);
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
+
+        // Initialize user data immediately if available
+        const userData = JSON.parse(document.querySelector('[data-user]').dataset.user || '{}');
+        if (userData && Object.keys(userData).length > 0) {
+            window.currentUser = userData;
+            window.updateUserUI(userData);
+        }
+
+        // Handle Environment Variables
+        document.getElementById('addEnvVar').addEventListener('click', function() {
+            const container = document.getElementById('envVarsContainer');
+            const newRow = document.createElement('div');
+            newRow.className = 'row mb-2';
+            newRow.innerHTML = `
+                <div class="col-5">
+                    <input type="text" class="form-control" placeholder="KEY" name="envKey[]">
+                </div>
+                <div class="col-6">
+                    <input type="text" class="form-control" placeholder="VALUE" name="envValue[]">
+                </div>
+                <div class="col-1">
+                    <button type="button" class="btn btn-danger btn-sm remove-env"><i class="bi bi-trash"></i></button>
+                </div>
+            `;
+            container.appendChild(newRow);
+        });
+
+        // Remove Environment Variable Row
+        document.addEventListener('click', function(e) {
+            if (e.target.closest('.remove-env')) {
+                e.target.closest('.row').remove();
+            }
+        });
+
+        // Form Submission
+        document.getElementById('deployForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            if (!this.checkValidity()) {
+                e.stopPropagation();
+                this.classList.add('was-validated');
+                return;
+            }
+
+            try {
+                const user = firebase.auth().currentUser;
+                if (!user) {
+                    alert('Please log in to deploy your application.');
+                    return;
+                }
+
+                const token = await user.getIdToken();
+
+                // Collect environment variables
+                const envVars = {};
+                const envKeys = document.getElementsByName('envKey[]');
+                const envValues = document.getElementsByName('envValue[]');
+                for (let i = 0; i < envKeys.length; i++) {
+                    if (envKeys[i].value) {
+                        envVars[envKeys[i].value] = envValues[i].value;
+                    }
+                }
+
+                // Prepare deployment data
+                const deploymentData = {
+                    projectName: document.getElementById('projectName').value,
+                    repoUrl: document.getElementById('repoUrl').value,
+                    branch: document.getElementById('branch').value,
+                    environmentVariables: envVars,
+                    instanceType: document.getElementById('instanceType').value,
+                    region: document.getElementById('region').value,
+                    buildCommand: document.getElementById('buildCommand').value,
+                    startCommand: document.getElementById('startCommand').value
+                };
+
+                // Send deployment request
+                const response = await fetch('/cloud-server/api/deploy', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify(deploymentData)
+                });
+
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.message || 'Deployment failed');
+                }
+
+                const result = await response.json();
+                alert('Deployment initiated successfully! You will be notified when the deployment is complete.');
+                
+                // Reset form
+                this.reset();
+                this.classList.remove('was-validated');
+                
+            } catch (error) {
+                alert(`Deployment failed: ${error.message}`);
+            }
+        });
+    </script>
+</body>
+</html> 
